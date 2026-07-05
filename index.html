@@ -130,8 +130,8 @@ const CHARACTERS = [
 let activeCharId = 'yellow'; let highScore = 0; let totalCoins = 0;
 let currentMode = 'SINGLE'; let peer = null, conn = null; let isHost = false;
 
-let p1 = { x: 7, y: 2, subX: 7 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 8, speed: 4, isFalling: false, dead: false, flashlightTimer: 0 };
-let p2 = { x: 7, y: 2, subX: 7 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 8, speed: 4, isFalling: false, dead: false, flashlightTimer: 0 };
+let p1 = { x: 7, y: 2, subX: 7 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 8, speed: 4, isFalling: false, dead: false, flashlightTimer: 450 };
+let p2 = { x: 7, y: 2, subX: 7 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 8, speed: 4, isFalling: false, dead: false, flashlightTimer: 450 };
 let gameState = 'START'; let mobileLeftPressed = false, mobileRightPressed = false;
 let cameraY = 0;
 
@@ -164,8 +164,9 @@ function initMap() {
         if(y % 8 === 0 && Math.random() < 0.1) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'light' });
     }
     generatedMaxY = 60;
-    p1.subX = 7 * TILE_SIZE + 4; p1.subY = 2 * TILE_SIZE; p1.dead = false; p1.flashlightTimer = 0;
-    p2.subX = 8 * TILE_SIZE + 4; p2.subY = 2 * TILE_SIZE; p2.dead = false; p2.flashlightTimer = 0;
+    // 開始時に最初からステージが暗くならないよう、ライトタイマーをしっかり初期化
+    p1.subX = 7 * TILE_SIZE + 4; p1.subY = 2 * TILE_SIZE; p1.dead = false; p1.flashlightTimer = 450;
+    p2.subX = 8 * TILE_SIZE + 4; p2.subY = 2 * TILE_SIZE; p2.dead = false; p2.flashlightTimer = 450;
 }
 
 function extendMap() {
@@ -194,18 +195,32 @@ function update() {
 
     cameraY += 0.4; 
 
-    let nextY = me.subY + 6;
-    let onFloor = false;
-    let gridY = Math.floor((nextY + me.height) / TILE_SIZE);
+    // 【修正：下へのスライドバグ対策】
+    // 事前に現在の足元のブロック（me.subY + me.height）のすぐ下のマスをチェックする方式に変更
+    let currentFloorY = Math.floor((me.subY + me.height) / TILE_SIZE);
     let pL = Math.floor((me.subX + 4) / TILE_SIZE); 
     let pR = Math.floor((me.subX + me.width - 4) / TILE_SIZE);
 
-    if (map[gridY] && (map[gridY][pL] === 1 || map[gridY][pR] === 1)) { onFloor = true; }
+    let onFloor = false;
+    // プレイヤーの底面がちょうどタイルの境目にあり、かつ下のマスが壁の場合のみ「着地状態」とする
+    if ((me.subY + me.height) % TILE_SIZE === 0) {
+        if (map[currentFloorY] && (map[currentFloorY][pL] === 1 || map[currentFloorY][pR] === 1)) {
+            onFloor = true;
+        }
+    }
 
     if (!onFloor) { 
-        me.isFalling = true; me.subY = nextY; 
-    } else { 
-        me.isFalling = false; me.subY = Math.floor(me.subY / TILE_SIZE) * TILE_SIZE; 
+        me.isFalling = true;
+        let nextY = me.subY + 6;
+        let nextFloorY = Math.floor((nextY + me.height) / TILE_SIZE);
+        
+        // 落下中に床を突き抜けないように制御
+        if (map[nextFloorY] && (map[nextFloorY][pL] === 1 || map[nextFloorY][pR] === 1)) {
+            me.subY = nextFloorY * TILE_SIZE - me.height; // 床のジャストの高さに固定
+            me.isFalling = false;
+        } else {
+            me.subY = nextY;
+        }
     }
 
     let moveDir = 0;
@@ -258,7 +273,7 @@ function endGame() {
     document.getElementById('screen-gameover').classList.remove('hidden');
     renderCharMenu();
 }
-function drawCharacter(x, y, charId, isFacingLeft) {
+    function drawCharacter(x, y, charId, isFacingLeft) {
     ctx.save();
     ctx.translate(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
     if (isFacingLeft) ctx.scale(-1, 1);
@@ -293,7 +308,7 @@ function draw() {
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     ctx.save();
-    ctx.translate(0, -Math.floor(cameraY)); // 少数座標によるブレを完全に防ぐ整数化
+    ctx.translate(0, -Math.floor(cameraY)); // 整数化して描画ブレを完全にガード
 
     for (let y = 0; y < generatedMaxY; y++) {
         if (!map[y]) continue;
@@ -316,9 +331,9 @@ function draw() {
 
     ctx.restore();
 
-    // ライト切れ時のマスク処理
+    // ライト切れ時の暗闇マスク処理
     if(me.flashlightTimer <= 0) {
-        ctx.fillStyle = 'rgba(0,0,0,0.88)';
+        ctx.fillStyle = 'rgba(0,0,0,0.92)'; // 少しだけ暗闇のメリハリを強化
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         ctx.globalCompositeOperation = 'destination-out';
         
