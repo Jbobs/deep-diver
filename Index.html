@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Deep Drop - Ruined Depth & Coins</title>
+    <!-- オンライン用ライブラリ -->
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            background-color: #08090c;
+            color: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 440px; /* 見切れ防止のためスマホ幅を最適化 */
+            height: 100%;
+            max-height: 850px;
+            background: #111318;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            border: 4px solid #232733;
+            border-radius: 16px;
+        }
+        #ui-top {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #0b0c10;
+            border-bottom: 3px solid #232733;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+        .ui-box {
+            background: #1f232e;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid #343b4f;
+            color: #cbd5e0;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+        }
+        #canvas-wrapper {
+            flex: 1;
+            position: relative;
+            background: #030406;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #controls {
+            display: flex;
+            height: 100px;
+            background: #0b0c10;
+            border-top: 3px solid #232733;
+            padding: 12px;
+            gap: 12px;
+        }
+        .btn {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(180deg, #282f42, #1b202e);
+            font-size: 18px;
+            font-weight: bold;
+            color: #cbd5e0;
+            border: 2px solid #3d4763;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px #0f121a;
+        }
+        .btn:active {
+            background: #1b202e;
+            transform: translateY(2px);
+            box-shadow: 0 2px #0f121a;
+        }
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(8, 9, 12, 0.97);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            text-align: center;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .hidden { display: none !important; }
+        .overlay h1 { font-size: 34px; color: #ff9f43; margin-bottom: 6px; text-shadow: 0 4px 8px rgba(0,0,0,0.6); letter-spacing: 2px; font-weight: 900; }
+        .overlay p { font-size: 13px; margin-bottom: 20px; color: #8a99ad; line-height: 1.5; }
+        
+        .mode-menu { display: flex; flex-direction: column; gap: 14px; width: 90%; margin-bottom: 10px; }
+        .mode-btn { padding: 16px; font-size: 15px; font-weight: bold; border-radius: 12px; border: 2px solid #3d4763; cursor: pointer; color: #fff; background: #1f232e; box-shadow: 0 4px rgba(0,0,0,0.3); }
+        #btn-mode-single { border-color: #ffca28; background: linear-gradient(145deg, #252b3a, #151922); }
+        #btn-mode-multi { border-color: #00e5ff; background: linear-gradient(145deg, #1f2a3a, #111822); }
+
+        .online-panel { background: #1f232e; border: 2px solid #3d4763; border-radius: 10px; padding: 12px; width: 90%; margin-bottom: 12px; text-align: left; }
+        .online-title { font-size: 11px; color: #ffca28; font-weight: bold; margin-bottom: 6px; }
+        .id-display { background: #0b0c10; color: #00e5ff; padding: 10px; font-family: monospace; font-size: 13px; border-radius: 6px; border: 1px solid #3d4763; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .copy-btn { background: #3d4763; color: #fff; border: none; padding: 4px 8px; font-size: 11px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .online-input { width: 100%; padding: 10px; font-size: 13px; background: #0b0c10; color: #fff; border: 1px solid #3d4763; border-radius: 6px; margin-bottom: 8px; font-family: monospace; }
+        .connect-btn { width: 100%; padding: 10px; background: #00e5ff; color: #0b0c10; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; box-shadow: 0 3px #00b6cc; }
+        .status-text { font-size: 12px; color: #ff9f43; font-weight: bold; margin-bottom: 10px; }
+
+        .overlay button.main-action { padding: 14px 20px; font-size: 16px; background: linear-gradient(145deg, #ffca28, #ff9f43); color: #0b0c10; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; box-shadow: 0 4px #b87a00; width: 90%; margin-top: 8px; }
+        .overlay button.main-action:disabled { background: #3d4763; color: #64748b; box-shadow: none; cursor: not-allowed; }
+        .overlay button.btn-secondary { background: #1f232e; color: #cbd5e0; border: 1px solid #3d4763; border-radius: 10px; padding: 10px 16px; font-weight: bold; cursor: pointer; margin-top: 20px; font-size: 13px; width: 70%; }
+
+        .char-selector-title { font-size: 11px; color: #ffca28; margin-bottom: 8px; font-weight: bold; text-align: left; width: 90%; letter-spacing: 0.5px; }
+        .char-scroll-box { display: flex; gap: 8px; width: 90%; overflow-x: auto; padding: 10px; background: #0b0c10; border-radius: 10px; border: 2px solid #1f232e; margin-bottom: 16px; }
+        .char-card { flex: 0 0 95px; padding: 10px 4px; border: 2px solid #3d4763; background: #1f232e; border-radius: 8px; cursor: pointer; text-align: center; }
+        .char-card.selected { border-color: #ffca28; background: linear-gradient(145deg, #2b2718, #1f232e); box-shadow: 0 0 8px rgba(255,202,40,0.3); }
+        .char-card.locked { opacity: 0.25; cursor: not-allowed; background: #111318; }
+        .char-dot { font-size: 20px; margin-bottom: 2px; }
+        .char-name { font-size: 11px; font-weight: bold; color: #e2e8f0; }
+
+        #crown-badge { position: relative; font-size: 28px; margin-bottom: 6px; display: inline-block; }
+        #crown-count { position: absolute; top: -4px; right: -10px; background: #ef4444; color: white; font-size: 10px; font-weight: bold; padding: 1px 5px; border-radius: 10px; border: 1.5px solid white; }
+        #danger-indicator { position: absolute; top: 32px; left: 50%; transform: translateX(-50%); background: #ef4444; color: white; padding: 8px 20px; border-radius: 30px; font-weight: bold; font-size: 13px; box-shadow: 0 0 15px #ef4444; animation: blink 0.4s infinite alternate; z-index: 5; border: 2px solid #fff; }
+        @keyframes blink { from { opacity: 0.6; transform: translateX(-50%) scale(0.95); } to { opacity: 1; transform: translateX(-50%) scale(1.05); } }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="ui-top">
+        <div class="ui-box">DEPTH: <span id="ui-depth">0</span>m / 500m</div>
+        <div class="ui-box" style="color: #ffd700;">🪙 <span id="ui-coins">0</span></div>
+        <div class="ui-box">HI-SCORE: <span id="ui-high">0</span>m</div>
+    </div>
+
+    <div id="canvas-wrapper">
+        <canvas id="gameCanvas"></canvas>
+        <div id="danger-indicator" class="hidden">⚠️ DEAD END!</div>
+    </div>
+
+    <div id="controls">
+        <div class="btn" id="btn-left">◀ LEFT</div>
+        <div class="btn" id="btn-right">RIGHT ▶</div>
+    </div>
+
+    <!-- メインメニュー -->
+    <div id="screen-start" class="overlay">
+        <div id="crown-badge" class="hidden">👑<span id="crown-count">0</span></div>
+        <h1>DEEP DROP</h1>
+        <p>正解ルートを見極めて最深部500mを突破せよ！</p>
+        
+        <div class="mode-menu" id="mode-selection-group">
+            <div class="mode-btn" id="btn-mode-single">🚶 1人プレイではじめる</div>
+            <div class="mode-btn" id="btn-mode-multi">👥 2人オンライン通信プレイ</div>
+        </div>
+
+        <!-- 1人プレイ設定 -->
+        <div id="single-setup-area" class="hidden" style="width:100%; flex-direction:column; align-items:center;">
+            <div class="char-selector-title">EXPLORER SELECT (到達深度でアンロック)</div>
+            <div class="char-scroll-box" id="char-container"></div>
+            <button id="start-single-btn" class="main-action">START GAME</button>
+            <button class="btn-secondary back-to-menu-btn">◀ モード選択に戻る</button>
+        </div>
+
+        <!-- 2人プレイ設定 -->
+        <div id="multi-setup-area" class="hidden" style="width:100%; flex-direction:column; align-items:center;">
+            <div class="online-panel">
+                <div class="online-title">① 自分の接続ID (相手に送る)</div>
+                <div class="id-display">
+                    <span id="my-id">Loading ID...</span>
+                    <button class="copy-btn" id="btn-copy">COPY</button>
+                </div>
+            </div>
+            <div class="online-panel">
+                <div class="online-title">② 友達のIDを入力して繋ぐ</div>
+                <input type="text" class="online-input" id="peer-id-input" placeholder="ここに相手のIDをペースト">
+                <button class="connect-btn" id="btn-connect">CONNECT</button>
+            </div>
+            <div class="status-text" id="connection-status">通信準備中...</div>
+            <button id="start-multi-btn" class="main-action" disabled>START MULTI GAME (1Pのみ)</button>
+            <button class="btn-secondary back-to-menu-btn">◀ モード選択に戻る</button>
+        </div>
+    </div>
+
+    <!-- ゲームオーバー画面 -->
+    <div id="screen-gameover" class="overlay hidden">
+        <h1 style="color:#f87171;">GAME OVER</h1>
+        <p>ルートが遮断された、または闇に呑まれた…<br>到達深度: <span id="result-depth">0</span>m</p>
+        <div id="unlock-msg" style="color: #4fd1c5; font-size:12px; margin-bottom:14px; font-weight:bold;" class="hidden">🎉 新しい調査員が覚醒しました！</div>
+        <button id="restart-button" class="main-action">RETRY</button>
+        <button id="home-button" class="btn-secondary">BACK TO MENU</button>
+    </div>
+
+    <!-- クリア画面 -->
+    <div id="screen-clear" class="overlay hidden">
+        <h1 style="color:#fbbf24;">STAGE CLEAR!</h1>
+        <div style="font-size: 50px; margin: 10px 0;">👑</div>
+        <p>最深部500mに到達し、伝説の秘宝を手に入れた！</p>
+        <button id="clear-home-button" class="main-action">BACK TO MENU</button>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const COLS = 16;            /* 横幅カラム数を20→16に圧縮し見切れ対策 */
+const TILE_SIZE = 26;       
+const VIEW_ROWS = 24;       
+let map = [];               
+let items = []; 
+let generatedMaxY = 0;      
+let truePathX = 8; 
+
+// キャラクターアンロック基準を500mスケールに再配置
+const CHARACTERS = [
+    { id: 'yellow', name: 'イエロー', color: '#ffca28', req: 0, scale: 1.0 },
+    { id: 'aqua', name: 'アクア', color: '#00e5ff', req: 80, scale: 1.1 },
+    { id: 'emerald', name: 'エメラルド', color: '#10b981', req: 160, scale: 1.2 },
+    { id: 'ruby', name: 'ルビー', color: '#f43f5e', req: 240, scale: 1.3 },
+    { id: 'purple', name: 'パープル', color: '#a855f7', req: 320, scale: 1.4 },
+    { id: 'orange', name: 'オレンジ', color: '#f97316', req: 400, scale: 1.5 },
+    { id: 'rainbow', name: 'プリズム', color: '#ffffff', req: 500, scale: 1.6 }
+];
+
+let activeCharId = localStorage.getItem('deepDrop_activeChar_v14') || 'yellow';
+let clearCount = parseInt(localStorage.getItem('deepDrop_clears_v14')) || 0;
+let highScore = parseInt(localStorage.getItem('deepDrop_high_v14')) || 0;
+let totalCoins = parseInt(localStorage.getItem('deepDrop_coins_v14')) || 0;
+
+let currentMode = 'SINGLE'; 
+let peer = null, conn = null;
+let isHost = false;
+let syncSeed = 0;
+
+// スピード設計：落下中の空中制御幅を減少 (airSpeed: 1.8)
+let p1 = { x: 8, y: 2, subX: 8 * TILE_SIZE, subY: 2 * TILE_SIZE, width: TILE_SIZE - 6, speed: 4.5, airSpeed: 1.8, isFalling: false, stuckTimer: 0, dead: false, deathAnimFrame: 0, flashlightTimer: 0 };
+let p2 = { x: 8, y: 2, subX: 8 * TILE_SIZE, subY: 2 * TILE_SIZE, width: TILE_SIZE - 6, speed: 4.5, airSpeed: 1.8, isFalling: false, stuckTimer: 0, dead: false, deathAnimFrame: 0, flashlightTimer: 0 };
+
+document.getElementById('ui-high').innerText = highScore;
+document.getElementById('ui-coins').innerText = totalCoins;
+let gameState = 'START'; 
+let keys = {};
+let mobileLeftPressed = false, mobileRightPressed = false;
+
+function seededRandom() {
+    if (currentMode === 'MULTI') {
+        let x = Math.sin(syncSeed++) * 10000;
+        return x - Math.floor(x);
+    }
+    return Math.random();
+}
+
+function initPeer() {
+    if (peer) return;
+    try {
+        peer = new Peer();
+        peer.on('open', (id) => {
+            document.getElementById('my-id').innerText = id;
+            document.getElementById('connection-status').innerText = 'ID取得完了。';
+        });
+        peer.on('connection', (connection) => {
+            if (conn) return;
+            conn = connection; isHost = true; setupConnection();
+        });
+    } catch(e) { console.error(e); }
+}
+
+document.getElementById('btn-connect').addEventListener('click', () => {
+    const peerId = document.getElementById('peer-id-input').value.trim();
+    if (!peerId) return;
+    document.getElementById('connection-status').innerText = '接続中...';
+    conn = peer.connect(peerId); isHost = false; setupConnection();
+});
+
+function setupConnection() {
+    conn.on('open', () => {
+        document.getElementById('connection-status').innerText = '接続成功！';
+        if (isHost) {
+            syncSeed = Math.floor(Math.random() * 99999);
+            conn.send({ type: 'INIT_SEED', seed: syncSeed });
+            document.getElementById('start-multi-btn').disabled = false;
+        }
+    });
+    conn.on('data', (data) => {
+        if (data.type === 'INIT_SEED') { syncSeed = data.seed; document.getElementById('connection-status').innerText = '同期完了！'; }
+        if (data.type === 'START_GAME') { startGame('MULTI'); }
+        if (data.type === 'POS') {
+            let target = isHost ? p2 : p1;
+            target.subX = data.subX; target.subY = data.subY; target.isFalling = data.isFalling;
+            target.dead = data.dead; target.deathAnimFrame = data.deathAnimFrame; target.flashlightTimer = data.flashlightTimer;
+        }
+        if (data.type === 'COIN_COLLECT') {
+            items = items.filter(item => !(item.type === 'coin' && item.x === data.x && item.y === data.y));
+        }
+        if (data.type === 'GAMEOVER') {
+            gameState = 'GAMEOVER';
+            document.getElementById('result-depth').innerText = data.depth;
+            document.getElementById('screen-gameover').classList.remove('hidden');
+        }
+        if (data.type === 'CLEAR') { gameState = 'CLEAR'; document.getElementById('screen-clear').classList.remove('hidden'); }
+    });
+}
+
+const BIOMES = [
+    { name: "岩石遺跡層", color: { r: 52, g: 58, b: 70 } }, 
+    { name: "深海大氷壁", color: { r: 30, g: 65, b: 105 } },
+    { name: "煉獄灼熱層", color: { r: 130, g: 32, b: 32 } }, 
+    { name: "古代発光層", color: { r: 24, g: 85, b: 80 } },
+    { name: "極限アビス", color: { r: 50, g: 30, b: 90 } }
+];
+
+function initMap() {
+    map = []; items = []; generatedMaxY = 0; truePathX = Math.floor(COLS / 2);
+    for (let y = 0; y < 10; y++) map[y] = new Array(COLS).fill(0);
+    generatedMaxY = 10;
+    extendMap(150);
+
+    p1.subX = (currentMode === 'SINGLE' ? truePathX : truePathX - 1) * TILE_SIZE + 3; p1.subY = 2 * TILE_SIZE; p1.dead = false; p1.stuckTimer = 0; p1.deathAnimFrame = 0; p1.flashlightTimer = 0;
+    p2.subX = (truePathX + 1) * TILE_SIZE + 3; p2.subY = 2 * TILE_SIZE; p2.dead = false; p2.stuckTimer = 0; p2.deathAnimFrame = 0; p2.flashlightTimer = 0;
+}
+
+function extendMap(targetRows) {
+    while (generatedMaxY < targetRows) {
+        let y = generatedMaxY;
+        
+        // ゴール設定深度を 500m (y=1000) へ拡張
+        if (y === 1000) {
+            map[y] = new Array(COLS).fill(1);
+            map[y-1] = new Array(COLS).fill(0);
+            items.push({ x: Math.floor(COLS/2), y: y - 1, type: 'chest', active: true });
+            generatedMaxY = 1001; break;
+        }
+        if (y > 1000) { map[y] = new Array(COLS).fill(1); generatedMaxY++; continue; }
+
+        if (y % 2 === 0) {
+            map[y] = new Array(COLS).fill(1);
+            let nextPathX = Math.max(1, Math.min(COLS - 3, truePathX + (Math.floor(seededRandom() * 5) - 2)));
+            map[y][truePathX] = 0; map[y][truePathX + 1] = 0;
+            if (!map[y+1]) map[y+1] = new Array(COLS).fill(0);
+            let startX = Math.min(truePathX, nextPathX), endX = Math.max(truePathX + 1, nextPathX + 1);
+            for (let x = startX; x <= endX; x++) map[y+1][x] = 9;
+            truePathX = nextPathX;
+
+            let totalHoles = Math.floor(seededRandom() * 2) + 1;
+            for (let i = 0; i < totalHoles; i++) {
+                let fakeX = Math.floor(seededRandom() * (COLS - 3)) + 1;
+                map[y][fakeX] = 0; map[y][fakeX + 1] = 0;
+            }
+        } else {
+            if (!map[y]) map[y] = new Array(COLS).fill(0);
+            if (y > 14) {
+                let wallChance = 0.3;
+                for (let x = 0; x < COLS; x++) {
+                    if (map[y][x] !== 9 && x > 0 && x < COLS - 1) {
+                        if (seededRandom() < wallChance) map[y][x] = 1;
+                    }
+                }
+            }
+            for (let x = 0; x < COLS; x++) if (map[y][x] === 9) map[y][x] = 0;
+            
+            // アイテム・コインのランダム配置
+            if (y > 12) {
+                let rand = seededRandom();
+                if (rand < 0.08) items.push({ x: truePathX, y: y, type: 'flashlight', active: true });
+                else if (rand < 0.35) {
+                    let cx = Math.floor(seededRandom() * (COLS - 2)) + 1;
+                    if (map[y][cx] === 0) items.push({ x: cx, y: y, type: 'coin', active: true });
+                }
+            }
+        }
+        generatedMaxY++;
+    }
+}
+
+function getBiomeColor(y) {
+    let depthMeters = Math.floor(y / 2);
+    let interval = 100; 
+    let index = Math.floor(depthMeters / interval);
+    if (index >= BIOMES.length - 1) return BIOMES[BIOMES.length - 1].color;
+    let currentBiome = BIOMES[index], nextBiome = BIOMES[index + 1];
+    let progress = (depthMeters % interval) / interval;
+    let blendFactor = progress > 0.75 ? (progress - 0.75) / 0.25 : 0;
+    return {
+        r: Math.round(currentBiome.color.r + (nextBiome.color.r - currentBiome.color.r) * blendFactor),
+        g: Math.round(currentBiome.color.g + (nextBiome.color.g - currentBiome.color.g) * blendFactor),
+        b: Math.round(currentBiome.color.b + (nextBiome.color.b - currentBiome.color.b) * blendFactor)
+    };
+}
+
+function update() {
+    if (gameState !== 'PLAYING') return;
+
+    let me = (currentMode === 'SINGLE' || isHost) ? p1 : p2;
+    me.x = Math.floor((me.subX + me.width / 2) / TILE_SIZE);
+    me.y = Math.floor((me.subY + TILE_SIZE / 2) / TILE_SIZE);
+
+    if (me.flashlightTimer > 0) me.flashlightTimer--;
+
+    let maxPlayerY = currentMode === 'SINGLE' ? p1.subY : Math.max(p1.subY, p2.subY);
+    if (Math.floor(maxPlayerY / TILE_SIZE) + VIEW_ROWS > generatedMaxY) extendMap(generatedMaxY + 40);
+
+    let cameraY = maxPlayerY - canvas.height / 3;
+    if (cameraY < 0) cameraY = 0;
+
+    if (currentMode === 'MULTI' && me.subY < cameraY - 20) me.dead = true;
+
+    // 428行目の続き（ここから下が残りの全コードです）
+        let nextGridY = Math.floor((me.subY + TILE_SIZE) / TILE_SIZE);
+        if (currentMode === 'MULTI' && me.subY < cameraY - 50) {
+            me.subY = cameraY - 50;
+        }
+    }
+
+    if (currentMode === 'MULTI') {
+        let maxPlayerY = Math.max(p1.subY, p2.subY);
+        if (Math.floor(maxPlayerY / TILE_SIZE) + VIEW_ROWS / 2 >= currentGridHeight) {
+            generateMoreMap();
+        }
+        let targetCameraY = maxPlayerY - canvas.height / 3;
+        cameraY += (targetCameraY - cameraY) * 0.1;
+        if (cameraY < 0) cameraY = 0;
+    } else {
+        if (Math.floor(p1.subY / TILE_SIZE) + VIEW_ROWS / 2 >= currentGridHeight) {
+            generateMoreMap();
+        }
+        let targetCameraY = p1.subY - canvas.height / 3;
+        cameraY += (targetCameraY - cameraY) * 0.1;
+        if (cameraY < 0) cameraY = 0;
+    }
+
+    [p1, p2].forEach((p, index) => {
+        if (currentMode === 'SINGLE' && index === 1) return;
+        if (!p.isAlive) return;
+
+        let nextSubX = p.subX + p.vx;
+        let nextSubY = p.subY + p.vy;
+
+        let leftTile = Math.floor(nextSubX / TILE_SIZE);
+        let rightTile = Math.floor((nextSubX + p.width - 1) / TILE_SIZE);
+        let topTile = Math.floor(nextSubY / TILE_SIZE);
+        let bottomTile = Math.floor((nextSubY + p.height - 1) / TILE_SIZE);
+
+        let collision = false;
+        for (let r = topTile; r <= bottomTile; r++) {
+            for (let c = leftTile; c <= rightTile; c++) {
+                if (mapGrid[r] && mapGrid[r][c] === 1) {
+                    collision = true;
+                    break;
+                }
+            }
+            if (collision) break;
+        }
+
+        if (!collision) {
+            p.subX = nextSubX;
+            p.subY = nextSubY;
+        } else {
+            p.vx = 0;
+            p.vy = 0;
+        }
+
+        if (p.subY > (currentGridHeight * TILE_SIZE)) {
+            p.isAlive = false;
+        }
+    });
+
+    if (currentMode === 'SINGLE' && !p1.isAlive) {
+        gameState = 'GAMEOVER';
+    } else if (currentMode === 'MULTI' && !p1.isAlive && !p2.isAlive) {
+        gameState = 'GAMEOVER';
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.translate(0, -cameraY);
+
+    let startRow = Math.floor(cameraY / TILE_SIZE);
+    let endRow = startRow + VIEW_ROWS + 2;
+
+    for (let r = startRow; r <= endRow; r++) {
+        if (!mapGrid[r]) continue;
+        for (let c = 0; c < MAP_COLS; c++) {
+            if (mapGrid[r][c] === 1) {
+                ctx.fillStyle = '#333';
+                ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            }
+        }
+    }
+
+    [p1, p2].forEach((p, index) => {
+        if (currentMode === 'SINGLE' && index === 1) return;
+        if (!p.isAlive) return;
+
+        ctx.fillStyle = (index === 0) ? '#00ff00' : '#ff00ff';
+        ctx.fillRect(p.subX, p.subY, p.width, p.height);
+
+        if (p.flashlightTimer > 0) {
+            let grad = ctx.createRadialGradient(
+                p.subX + p.width / 2, p.subY + p.height / 2, 10,
+                p.subX + p.width / 2, p.subY + p.height / 2, p.flashlightRadius
+            );
+            grad.addColorStop(0, 'rgba(255, 255, 200, 0.5)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(p.subX + p.width / 2, p.subY + p.height / 2, p.flashlightRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    });
+
+    ctx.restore();
+
+    if (gameState === 'MENU') {
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#fff';
+        ctx.font = '30px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('DEEP DIG', canvas.width / 2, canvas.height / 3);
+        ctx.font = '20px sans-serif';
+        ctx.fillText('1: SINGLE PLAYER', canvas.width / 2, canvas.height / 2);
+        ctx.fillText('2: MULTI PLAYER (HOST)', canvas.width / 2, canvas.height / 2 + 40);
+        ctx.fillText('3: MULTI PLAYER (JOIN)', canvas.width / 2, canvas.height / 2 + 80);
+    } else if (gameState === 'GAMEOVER') {
+        ctx.fillStyle = 'rgba(255,0,0,0.4)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#fff';
+        ctx.font = '40px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
+        ctx.font = '20px sans-serif';
+        ctx.fillText('Press Enter to Restart', canvas.width / 2, canvas.height / 2 + 50);
+    }
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+window.onload = () => {
+    initGame();
+    loop();
+};
+</script>
+</body>
+</html>
+
+  
