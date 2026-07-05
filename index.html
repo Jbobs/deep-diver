@@ -3,74 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Deep Drop - Kirby Edition</title>
+    <title>DEEP DROP</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
-        body { background-color: #08090c; color: #e2e8f0; font-family: sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        #game-container { position: relative; width: 100%; max-width: 440px; height: 100%; max-height: 850px; background: #111318; box-shadow: 0 20px 60px rgba(0,0,0,0.8); display: flex; flex-direction: column; border: 4px solid #232733; border-radius: 16px; }
-        #ui-top { display: flex; justify-content: space-between; padding: 12px 16px; background: #0b0c10; border-bottom: 3px solid #232733; font-size: 13px; font-weight: bold; }
-        .ui-box { background: #1f232e; padding: 6px 12px; border-radius: 6px; border: 1px solid #343b4f; }
-        #canvas-wrapper { flex: 1; position: relative; background: #030406; overflow: hidden; }
+        body { background-color: #000; color: #fff; font-family: monospace; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        #game-container { position: relative; width: 100%; max-width: 440px; height: 100%; max-height: 850px; background: #000; display: flex; flex-direction: column; }
+        
+        /* 2015.png / 2016.png のシンプルな黒ベースUIを再現 */
+        #ui-top { display: flex; justify-content: space-between; padding: 16px; background: #000; font-size: 14px; letter-spacing: 1px; }
+        .ui-box { background: rgba(255,255,255,0.05); padding: 6px 12px; border: 1px solid #333; border-radius: 4px; }
+        
+        #canvas-wrapper { flex: 1; position: relative; background: #000; overflow: hidden; }
         canvas { display: block; width: 100%; height: 100%; }
-        #controls { display: flex; height: 100px; background: #0b0c10; border-top: 3px solid #232733; padding: 12px; gap: 12px; }
-        .btn { flex: 1; display: flex; justify-content: center; align-items: center; background: linear-gradient(180deg, #282f42, #1b202e); font-size: 18px; font-weight: bold; color: #cbd5e0; border: 2px solid #3d4763; border-radius: 12px; cursor: pointer; box-shadow: 0 4px #0f121a; }
-        .btn:active { background: #1b202e; transform: translateY(2px); box-shadow: 0 2px #0f121a; }
-        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(8, 9, 12, 0.97); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; text-align: center; padding: 20px; }
+        
+        #controls { display: flex; height: 90px; background: #000; padding: 10px; gap: 10px; }
+        .btn { flex: 1; display: flex; justify-content: center; align-items: center; background: #111; font-size: 16px; color: #aaa; border: 1px solid #333; border-radius: 6px; cursor: pointer; }
+        .btn:active { background: #222; color: #fff; }
+        
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; text-align: center; padding: 20px; }
         .hidden { display: none !important; }
-        .overlay h1 { font-size: 34px; color: #ff43a1; margin-bottom: 6px; font-weight: 900; letter-spacing: 2px; text-shadow: 0 0 10px rgba(255,67,161,0.5); }
-        .overlay p { font-size: 13px; margin-bottom: 20px; color: #8a99ad; }
-        .mode-menu { display: flex; flex-direction: column; gap: 14px; width: 90%; }
-        .mode-btn { padding: 16px; font-size: 15px; font-weight: bold; border-radius: 12px; border: 2px solid #3d4763; cursor: pointer; color: #fff; background: #1f232e; }
-        #btn-mode-single { border-color: #ff43a1; background: linear-gradient(145deg, #3a2530, #22151c); }
-        #btn-mode-multi { border-color: #00e5ff; background: linear-gradient(145deg, #1f2a3a, #111822); }
-        .online-panel { background: #1f232e; border: 2px solid #3d4763; border-radius: 10px; padding: 12px; width: 90%; margin-bottom: 12px; text-align: left; }
-        .online-title { font-size: 11px; color: #ffca28; font-weight: bold; margin-bottom: 6px; }
-        .id-display { background: #0b0c10; color: #00e5ff; padding: 10px; font-family: monospace; font-size: 13px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
-        .copy-btn { background: #3d4763; color: #fff; border: none; padding: 4px 8px; font-size: 11px; cursor: pointer; border-radius: 4px; }
-        .online-input { width: 100%; padding: 10px; font-size: 13px; background: #0b0c10; color: #fff; border: 1px solid #3d4763; border-radius: 6px; margin-bottom: 8px; }
-        .connect-btn { width: 100%; padding: 10px; background: #00e5ff; color: #0b0c10; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; }
-        .status-text { font-size: 12px; color: #ff9f43; font-weight: bold; margin-bottom: 10px; }
-        .overlay button.main-action { padding: 14px 20px; font-size: 16px; background: linear-gradient(145deg, #ff6bb5, #ff43a1); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; width: 90%; margin-top: 8px; box-shadow: 0 4px #b3256d; }
-        .overlay button.main-action:disabled { background: #3d4763; color: #64748b; cursor: not-allowed; box-shadow: none; }
-        .overlay button.btn-secondary { background: #1f232e; color: #cbd5e0; border: 1px solid #3d4763; border-radius: 10px; padding: 10px 16px; cursor: pointer; margin-top: 20px; font-size: 13px; width: 70%; }
-        .char-selector-title { font-size: 11px; color: #ff43a1; margin-bottom: 8px; font-weight: bold; text-align: left; width: 90%; }
-        .char-scroll-box { display: flex; gap: 8px; width: 90%; overflow-x: auto; padding: 10px; background: #0b0c10; border-radius: 10px; margin-bottom: 16px; }
-        .char-card { flex: 0 0 95px; padding: 10px 4px; border: 2px solid #3d4763; background: #1f232e; border-radius: 8px; cursor: pointer; text-align: center; }
-        .char-card.selected { border-color: #ff43a1; background: linear-gradient(145deg, #3a222e, #1f232e); }
-        .char-card.locked { opacity: 0.25; cursor: not-allowed; }
-        .char-dot { font-size: 20px; margin-bottom: 2px; }
-        .char-name { font-size: 11px; font-weight: bold; }
-        #danger-indicator { position: absolute; top: 32px; left: 50%; transform: translateX(-50%); background: #ef4444; color: white; padding: 8px 20px; border-radius: 30px; font-weight: bold; font-size: 13px; z-index: 5; }
+        
+        /* 2015.png の黄色いフォントと王冠スタイル */
+        .overlay h1 { font-size: 36px; color: #ffd700; margin-bottom: 8px; letter-spacing: 4px; font-weight: normal; }
+        .overlay p { font-size: 12px; margin-bottom: 24px; color: #888; }
+        
+        .mode-menu { display: flex; flex-direction: column; gap: 12px; width: 85%; }
+        .mode-btn { padding: 14px; font-size: 14px; border: 1px solid #444; border-radius: 6px; cursor: pointer; color: #fff; background: #111; }
+        
+        .char-selector-title { font-size: 11px; color: #ffd700; margin-bottom: 8px; text-align: left; width: 85%; letter-spacing: 1px; }
+        .char-scroll-box { display: flex; gap: 8px; width: 85%; overflow-x: auto; padding: 10px 0; margin-bottom: 20px; }
+        .char-card { flex: 0 0 90px; padding: 10px 4px; border: 1px solid #333; background: #111; border-radius: 6px; cursor: pointer; text-align: center; }
+        .char-card.selected { border-color: #ffd700; background: #222; }
+        .char-card.locked { opacity: 0.2; cursor: not-allowed; }
+        .char-dot { font-size: 16px; margin-bottom: 4px; }
+        .char-name { font-size: 11px; color: #fff; }
+        
+        .overlay button.main-action { padding: 14px; font-size: 14px; background: #ffd700; color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 85%; margin-top: 8px; letter-spacing: 1px; }
+        .overlay button.btn-secondary { background: #222; color: #aaa; border: 1px solid #444; border-radius: 6px; padding: 10px; cursor: pointer; margin-top: 16px; font-size: 12px; width: 60%; }
+        
+        /* オンライン用UI */
+        .online-panel { background: #111; border: 1px solid #333; border-radius: 6px; padding: 12px; width: 85%; margin-bottom: 12px; text-align: left; }
+        .online-title { font-size: 11px; color: #ffd700; margin-bottom: 6px; }
+        .id-display { background: #000; color: #00e5ff; padding: 8px; font-size: 12px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .copy-btn { background: #333; color: #fff; border: none; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px; }
+        .online-input { width: 100%; padding: 8px; font-size: 12px; background: #000; color: #fff; border: 1px solid #333; border-radius: 4px; margin-bottom: 8px; }
+        .connect-btn { width: 100%; padding: 8px; background: #00e5ff; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; }
+        .status-text { font-size: 11px; color: #ff9f43; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 <div id="game-container">
     <div id="ui-top">
-        <div class="ui-box">DEPTH: <span id="ui-depth">0</span>m / 500m</div>
+        <div class="ui-box">DEPTH: <span id="ui-depth">0</span>m / 300m</div>
         <div class="ui-box" style="color: #ffd700;">🪙 <span id="ui-coins">0</span></div>
         <div class="ui-box">HI-SCORE: <span id="ui-high">0</span>m</div>
     </div>
     <div id="canvas-wrapper">
         <canvas id="gameCanvas"></canvas>
-        <div id="danger-indicator" class="hidden">⚠️ DEAD END!</div>
     </div>
     <div id="controls">
         <div class="btn" id="btn-left">◀ LEFT</div>
         <div class="btn" id="btn-right">RIGHT ▶</div>
     </div>
+    
     <div id="screen-start" class="overlay">
+        <div style="font-size:30px; margin-bottom:4px;">👑</div>
         <h1>DEEP DROP</h1>
-        <p>正解ルートを見極めて最深部500mを突破せよ！</p>
+        <p>正解ルートを掘り進み、300mの最深部を目指せ！</p>
         <div class="mode-menu" id="mode-selection-group">
             <div class="mode-btn" id="btn-mode-single">🚶 1人プレイではじめる</div>
             <div class="mode-btn" id="btn-mode-multi">👥 2人オンライン通信プレイ</div>
         </div>
         <div id="single-setup-area" class="hidden" style="width:100%; flex-direction:column; align-items:center;">
-            <div class="char-selector-title">EXPLORER SELECT</div>
+            <div class="char-selector-title">EXPLORER SELECT（深度報酬で解放）</div>
             <div class="char-scroll-box" id="char-container"></div>
-            <button id="start-single-btn" class="main-action">START GAME</button>
-            <button class="btn-secondary back-to-menu-btn">◀ 戻る</button>
+            <button id="start-single-btn" class="main-action">START SINGLE GAME</button>
+            <button class="btn-secondary back-to-menu-btn">◀ モード選択に戻る</button>
         </div>
         <div id="multi-setup-area" class="hidden" style="width:100%; flex-direction:column; align-items:center;">
             <div class="online-panel">
@@ -84,83 +93,108 @@
             </div>
             <div class="status-text" id="connection-status">通信準備中...</div>
             <button id="start-multi-btn" class="main-action" disabled>START MULTI GAME</button>
-            <button class="btn-secondary back-to-menu-btn">◀ 戻る</button>
+            <button class="btn-secondary back-to-menu-btn">◀ モード選択に戻る</button>
         </div>
     </div>
+    
     <div id="screen-gameover" class="overlay hidden">
-        <h1 style="color:#f87171;">GAME OVER</h1>
+        <h1 style="color:#ff4444;">GAME OVER</h1>
         <p>到達深度: <span id="result-depth">0</span>m</p>
         <button id="restart-button" class="main-action">RETRY</button>
         <button id="home-button" class="btn-secondary">BACK TO MENU</button>
     </div>
     <div id="screen-clear" class="overlay hidden">
-        <h1 style="color:#fbbf24;">STAGE CLEAR!</h1>
+        <h1 style="color:#ffd700;">STAGE CLEAR!</h1>
         <button id="clear-home-button" class="main-action">BACK TO MENU</button>
     </div>
 </div>
 
 <script>
 const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
-const COLS = 16; const TILE_SIZE = 26;
-let map = []; let items = []; let generatedMaxY = 0; let truePathX = 8;
+const COLS = 14; const TILE_SIZE = 30; // 元のグリッド感に合わせたサイズ
+let map = []; let items = []; let generatedMaxY = 0; let truePathX = 7;
+
+// 2015.png に基づく正しいキャラクターリスト
 const CHARACTERS = [
-    { id: 'pink', name: 'ピンク', color: '#ff8da1', eye: '#232733', cheek: '#ff43a1', req: 0 },
-    { id: 'yellow', name: 'きいろ', color: '#ffe143', eye: '#232733', cheek: '#ff9f43', req: 50 },
-    { id: 'blue', name: 'みずいろ', color: '#43ccff', eye: '#232733', cheek: '#3b82f6', req: 150 },
-    { id: 'green', name: 'きみどり', color: '#76ff43', eye: '#232733', cheek: '#10b981', req: 300 }
+    { id: 'yellow', name: 'イエロー', color: '#ffd700', req: 0 },
+    { id: 'aqua', name: 'アクア', color: '#00e5ff', req: 50 },
+    { id: 'emerald', name: 'エメラルド', color: '#00e676', req: 150 }
 ];
-let activeCharId = 'pink'; let highScore = 0; let totalCoins = 0;
+let activeCharId = 'yellow'; let highScore = 0; let totalCoins = 0;
 let currentMode = 'SINGLE'; let peer = null, conn = null; let isHost = false;
 
-// プレイヤーサイズと判定を最適化（穴にスムーズに落ちるようサイズを少し小ぶりに変更）
-let p1 = { x: 8, y: 2, subX: 8 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 6, speed: 5.0, isFalling: false, dead: false, flashlightTimer: 0 };
-let p2 = { x: 8, y: 2, subX: 8 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 6, speed: 5.0, isFalling: false, dead: false, flashlightTimer: 0 };
+// プレイヤーのサイズ・判定を穴にスムーズに落ちるよう最適化
+let p1 = { x: 7, y: 2, subX: 7 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 8, speed: 4.5, isFalling: false, dead: false, flashlightTimer: 0 };
+let p2 = { x: 7, y: 2, subX: 7 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 8, speed: 4.5, isFalling: false, dead: false, flashlightTimer: 0 };
 let gameState = 'START'; let mobileLeftPressed = false, mobileRightPressed = false;
+// 2016.png のような「ブロックが敷き詰められた」ステージの雰囲気を再現するカラー
 function getLayerStyle(y) {
     let d = Math.floor(y / 2);
-    if(d < 100) return { bg: '#0d0f14', wall: '#343b4f', name: '岩石遺跡層' };
-    if(d < 200) return { bg: '#040d1a', wall: '#1d4ed8', name: '深海大氷壁' };
-    if(d < 300) return { bg: '#1a0505', wall: '#b91c1c', name: '煉獄灼熱層' };
-    if(d < 400) return { bg: '#1e1b4b', wall: '#6d28d9', name: '妖光水晶層' };
-    return { bg: '#0f172a', wall: '#475569', name: '最深崩落界' };
+    if(d < 100) return { bg: '#05070a', wall: '#2c3545', name: '岩石遺跡層' };
+    if(d < 200) return { bg: '#020813', wall: '#1e40af', name: '深海大氷壁' };
+    if(d < 300) return { bg: '#140303', wall: '#991b1b', name: '煉獄灼熱層' };
+    if(d < 400) return { bg: '#13113c', wall: '#5b21b6', name: '妖光水晶層' };
+    return { bg: '#090d16', wall: '#334155', name: '最深崩落界' };
 }
 
+// 2016.png のような、ブロックが敷き詰められた複雑な配置を生成
 function initMap() {
-    map = []; items = []; generatedMaxY = 0; truePathX = 8;
-    for (let y = 0; y < 60; y++) {
+    map = []; items = []; generatedMaxY = 0; truePathX = 7;
+    
+    // 初期地点（上部）は少し広めに空けておく
+    for (let y = 0; y < 6; y++) {
         map[y] = new Array(COLS).fill(0);
-        if (y > 6 && y % 4 === 0) {
-            map[y] = new Array(COLS).fill(1);
+    }
+    
+    // 6行目以降からブロックを敷き詰める
+    for (let y = 6; y < 60; y++) {
+        map[y] = new Array(COLS).fill(0);
+        
+        // 基本的にランダムでブロックを敷き詰める（2016.pngの雰囲気）
+        for (let x = 0; x < COLS; x++) {
+            if (x === 0 || x === COLS - 1) {
+                map[y][x] = 1; // 左右の端は壁
+            } else if (Math.random() < 0.45) {
+                map[y][x] = 1; // 45%の確率でブロックを配置
+            }
+        }
+        
+        // プレイヤーが絶対に詰まないように、下へ進むための「正解の縦穴ルート」を1つ保証する
+        if (y % 3 === 0) {
             truePathX = Math.max(1, Math.min(COLS - 2, truePathX + (Math.random() < 0.5 ? -1 : 1)));
-            map[y][truePathX] = 0; // 正解ルートの穴
-            
-            // 遊びやすさのため、左右にもランダムで少し穴を広げる
-            if (truePathX > 1 && Math.random() < 0.4) map[y][truePathX - 1] = 0;
-            if (truePathX < COLS - 2 && Math.random() < 0.4) map[y][truePathX + 1] = 0;
-
-            if(Math.random() < 0.3) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y - 2, type: 'coin' });
-            if(Math.random() < 0.1) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y - 2, type: 'light' });
+        }
+        map[y][truePathX] = 0;
+        if (map[y-1]) map[y-1][truePathX] = 0; // 縦に抜けやすくする
+        
+        // アイテム配置
+        if(y % 5 === 0 && Math.random() < 0.3) {
+            items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'coin' });
+        }
+        if(y % 8 === 0 && Math.random() < 0.1) {
+            items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'light' });
         }
     }
     generatedMaxY = 60;
-    p1.subX = 8 * TILE_SIZE + 4; p1.subY = 2 * TILE_SIZE; p1.dead = false; p1.flashlightTimer = 0;
-    p2.subX = 9 * TILE_SIZE + 4; p2.subY = 2 * TILE_SIZE; p2.dead = false; p2.flashlightTimer = 0;
+    p1.subX = 7 * TILE_SIZE + 4; p1.subY = 2 * TILE_SIZE; p1.dead = false; p1.flashlightTimer = 0;
+    p2.subX = 8 * TILE_SIZE + 4; p2.subY = 2 * TILE_SIZE; p2.dead = false; p2.flashlightTimer = 0;
 }
 
 function extendMap() {
     let targetY = generatedMaxY + 40;
     for (let y = generatedMaxY; y < targetY; y++) {
         map[y] = new Array(COLS).fill(0);
-        if (y % 4 === 0) {
-            map[y] = new Array(COLS).fill(1);
-            truePathX = Math.max(1, Math.min(COLS - 2, truePathX + (Math.random() < 0.5 ? -1 : 1)));
-            map[y][truePathX] = 0;
-            if (truePathX > 1 && Math.random() < 0.4) map[y][truePathX - 1] = 0;
-            if (truePathX < COLS - 2 && Math.random() < 0.4) map[y][truePathX + 1] = 0;
-
-            if(Math.random() < 0.4) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y - 2, type: 'coin' });
-            if(Math.random() < 0.15) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y - 2, type: 'light' });
+        for (let x = 0; x < COLS; x++) {
+            if (x === 0 || x === COLS - 1) { map[y][x] = 1; }
+            else if (Math.random() < 0.45) { map[y][x] = 1; }
         }
+        if (y % 3 === 0) {
+            truePathX = Math.max(1, Math.min(COLS - 2, truePathX + (Math.random() < 0.5 ? -1 : 1)));
+        }
+        map[y][truePathX] = 0;
+        if (map[y-1]) map[y-1][truePathX] = 0;
+
+        if(y % 6 === 0 && Math.random() < 0.3) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'coin' });
+        if(y % 9 === 0 && Math.random() < 0.12) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'light' });
     }
     generatedMaxY = targetY;
 }
@@ -169,27 +203,41 @@ function update() {
     if (gameState !== 'PLAYING') return;
     let me = (currentMode === 'SINGLE' || isHost) ? p1 : p2;
 
-    // 足元の判定（ピクセル単位からグリッドのインデックスを正確に計算）
-    let gridY = Math.floor((me.subY + me.height + 1) / TILE_SIZE);
-    let pL = Math.floor((me.subX + 3) / TILE_SIZE); 
-    let pR = Math.floor((me.subX + me.width - 3) / TILE_SIZE);
-    
-    let onFloor = (map[gridY] && (map[gridY][pL] === 1 || map[gridY][pR] === 1));
-    
-    if (!onFloor) { 
-        me.isFalling = true; 
-        me.subY += 6.5; // 落下速度
-    } else { 
-        me.isFalling = false; 
-        me.subY = Math.floor(me.subY / TILE_SIZE) * TILE_SIZE + (TILE_SIZE - me.height); 
+    // 複雑なブロック配置でも「引っかからない」ための正確なピクセル衝突判定
+    let nextY = me.subY + 6.5; // 落下速度
+    let onFloor = false;
+
+    // 足元のブロック判定（左下と右下の2点でチェック）
+    let gridY = Math.floor((nextY + me.height) / TILE_SIZE);
+    let pL = Math.floor((me.subX + 4) / TILE_SIZE); 
+    let pR = Math.floor((me.subX + me.width - 4) / TILE_SIZE);
+
+    if (map[gridY] && (map[gridY][pL] === 1 || map[gridY][pR] === 1)) {
+        onFloor = true;
     }
 
+    if (!onFloor) { 
+        me.isFalling = true; 
+        me.subY = nextY; 
+    } else { 
+        me.isFalling = false; 
+        me.subY = Math.floor(me.subY / TILE_SIZE) * TILE_SIZE; 
+    }
+
+    // 左右移動と壁判定
     let moveDir = 0;
     if (mobileLeftPressed) moveDir = -1;
     if (mobileRightPressed) moveDir = 1;
     if (moveDir !== 0) {
-        me.subX += moveDir * me.speed;
-        me.subX = Math.max(TILE_SIZE, Math.min((COLS - 2) * TILE_SIZE, me.subX));
+        let nextX = me.subX + moveDir * me.speed;
+        let checkY1 = Math.floor(me.subY / TILE_SIZE);
+        let checkY2 = Math.floor((me.subY + me.height - 1) / TILE_SIZE);
+        let checkX = moveDir === -1 ? Math.floor(nextX / TILE_SIZE) : Math.floor((nextX + me.width) / TILE_SIZE);
+
+        // 横に壁やブロックがなければ移動を許可
+        if (map[checkY1] && map[checkY1][checkX] !== 1 && map[checkY2] && map[checkY2][checkX] !== 1) {
+            me.subX = nextX;
+        }
     }
 
     if (me.flashlightTimer > 0) me.flashlightTimer--;
@@ -209,10 +257,10 @@ function update() {
     document.getElementById('ui-depth').innerText = currentDepth;
     if (currentDepth > highScore) { highScore = currentDepth; document.getElementById('ui-high').innerText = highScore; }
 
+    // 最大深度は500m！
     if (currentDepth >= 500) { gameState = 'CLEAR'; document.getElementById('screen-clear').classList.remove('hidden'); return; }
     if (myTileY + 15 > generatedMaxY) extendMap();
 
-    // スムーズなカメラ追従
     let cameraY = me.subY - canvas.height / 3; if (cameraY < 0) cameraY = 0;
     if (me.subY < cameraY - 30) { me.dead = true; endGame(); }
 
@@ -228,47 +276,36 @@ function endGame() {
     renderCharMenu();
 }
 
-// カービィオマージュのドット絵風描画関数
-function drawKirby(x, y, charData, isFacingLeft) {
+// ピンクのキャラ（カービィ風ドット絵）を描画する処理
+function drawKirby(x, y, colorTheme, isFacingLeft) {
     ctx.save();
     ctx.translate(x + p1.width / 2, y + p1.height / 2);
     if (isFacingLeft) ctx.scale(-1, 1);
 
     let r = p1.width / 2;
 
-    // 体（メインの丸）
-    ctx.fillStyle = charData.color;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fill();
+    // まるい体
+    ctx.fillStyle = colorTheme;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
 
-    // つぶらな目
-    ctx.fillStyle = charData.eye;
-    ctx.beginPath();
-    ctx.arc(r * 0.3, -r * 0.2, r * 0.12, 0, Math.PI * 2);
-    ctx.arc(r * 0.7, -r * 0.2, r * 0.12, 0, Math.PI * 2);
-    ctx.fill();
+    // つぶらな縦目
+    ctx.fillStyle = '#222';
+    ctx.fillRect(r * 0.2, -r * 0.3, r * 0.15, r * 0.4);
+    ctx.fillRect(r * 0.6, -r * 0.3, r * 0.15, r * 0.4);
 
-    // ハイライト（白目）
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(r * 0.32, -r * 0.25, r * 0.04, 0, Math.PI * 2);
-    ctx.arc(r * 0.72, -r * 0.25, r * 0.04, 0, Math.PI * 2);
-    ctx.fill();
+    // 目のハイライト（白）
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(r * 0.2, -r * 0.3, r * 0.15, r * 0.15);
+    ctx.fillRect(r * 0.6, -r * 0.3, r * 0.15, r * 0.15);
 
-    // ぷにぷにのチーク（ほっぺ）
-    ctx.fillStyle = charData.cheek;
-    ctx.beginPath();
-    ctx.arc(r * 0.15, r * 0.05, r * 0.12, 0, Math.PI * 2);
-    ctx.arc(r * 0.85, r * 0.05, r * 0.12, 0, Math.PI * 2);
-    ctx.fill();
+    // ほっぺ（チーク）
+    ctx.fillStyle = '#ff43a1';
+    ctx.beginPath(); ctx.arc(r * 0.1, r * 0.1, r * 0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(r * 0.8, r * 0.1, r * 0.15, 0, Math.PI * 2); ctx.fill();
 
-    // にっこりお口
-    ctx.strokeStyle = charData.eye;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(r * 0.5, 0, r * 0.15, 0, Math.PI);
-    ctx.stroke();
+    // にっこり口
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 1.5; ctx.beginPath();
+    ctx.arc(r * 0.45, r * 0.05, r * 0.12, 0, Math.PI); ctx.stroke();
 
     ctx.restore();
 }
@@ -282,55 +319,54 @@ function draw() {
 
     ctx.save(); ctx.translate(0, -cameraY);
 
-    // 壁・ステージの描画
+    // 2016.png 風の敷き詰められたブロックを描画
     for (let y = 0; y < generatedMaxY; y++) {
         if (!map[y]) continue;
         let tStyle = getLayerStyle(y);
         for (let x = 0; x < COLS; x++) {
-            if (map[y][x] === 1) { ctx.fillStyle = tStyle.wall; ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE); }
+            if (map[y][x] === 1) { 
+                ctx.fillStyle = tStyle.wall; 
+                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE - 1, TILE_SIZE - 1); // 綺麗なグリッド感を出す隙間
+            }
         }
     }
-    // アイテム描画
+    
     items.forEach(it => {
         ctx.font = '16px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(it.type==='coin'?'🪙':'🔦', it.x*TILE_SIZE + TILE_SIZE/2, it.y*TILE_SIZE + TILE_SIZE/2);
     });
 
-    // プレイヤー1（カービィ風）を描画
-    let c1Data = CHARACTERS.find(c=>c.id===activeCharId) || CHARACTERS[0];
+    // ピンクの姿で描画
     if(!p1.dead) {
-        drawKirby(p1.subX, p1.subY, c1Data, mobileLeftPressed);
+        let col = activeCharId === 'yellow' ? '#ffd700' : (activeCharId === 'aqua' ? '#00e5ff' : '#00e676');
+        // デフォルト選択（ピンク）の場合はこのカラー
+        if (activeCharId === 'yellow') col = '#ff8da1'; // あなたが選んだピンク
+        drawKirby(p1.subX, p1.subY, col, mobileLeftPressed);
     }
-    // プレイヤー2（マルチ用）を描画
     if(currentMode === 'MULTI' && !p2.dead) {
-        let c2Data = CHARACTERS.find(c=>c.id==='blue') || CHARACTERS[2];
-        drawKirby(p2.subX, p2.subY, c2Data, false);
+        drawKirby(p2.subX, p2.subY, '#00e5ff', false);
     }
 
     ctx.restore();
 
-    // 視界制限（暗闇＆ランタンエフェクト）の処理
-    // 懐中電灯がない時でも、半径80pxの範囲はふんわり見えるように調整
-    let baseRadius = me.flashlightTimer > 0 ? 180 : 80;
-    
+    // 2016.png の「くり抜かれたような真ん丸の視界」エフェクト
+    let baseRadius = me.flashlightTimer > 0 ? 180 : 85;
     let maskCanvas = document.createElement('canvas');
     maskCanvas.width = canvas.width; maskCanvas.height = canvas.height;
     let mctx = maskCanvas.getContext('2d');
-    mctx.fillStyle = 'rgba(5, 6, 8, 0.75)'; // 全体の暗さ度合い
-    mctx.fillRect(0, 0, canvas.width, canvas.height);
+    mctx.fillStyle = '#000'; mctx.fillRect(0, 0, canvas.width, canvas.height);
 
     let screenX = me.subX + me.width/2;
     let screenY = me.subY + me.height/2 - cameraY;
 
     mctx.globalCompositeOperation = 'destination-out';
-    let grad = mctx.createRadialGradient(screenX, screenY, baseRadius * 0.2, screenX, screenY, baseRadius);
+    let grad = mctx.createRadialGradient(screenX, screenY, baseRadius * 0.4, screenX, screenY, baseRadius);
     grad.addColorStop(0, 'rgba(0,0,0,1)');
     grad.addColorStop(1, 'rgba(0,0,0,0)');
     mctx.fillStyle = grad; mctx.beginPath(); mctx.arc(screenX, screenY, baseRadius, 0, Math.PI*2); mctx.fill();
 
     ctx.drawImage(maskCanvas, 0, 0);
     
-    // UI表示
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(10, 50, 110, 24);
     ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.fillText(`📍 ${style.name}`, 16, 66);
 }
@@ -342,7 +378,10 @@ function renderCharMenu() {
     CHARACTERS.forEach(c => {
         let locked = highScore < c.req; let selected = activeCharId === c.id;
         let card = document.createElement('div'); card.className = `char-card ${selected?'selected':''} ${locked?'locked':''}`;
-        card.innerHTML = `<div class="char-dot" style="color:${c.color}">●</div><div class="char-name">${c.name}</div><div style="font-size:9px;color:#8a99ad;">${c.req===0?'初期':c.req+'m解禁'}</div>`;
+        // メニューの表示ドットもピンク色に対応
+        let dotColor = c.id === 'yellow' ? '#ff8da1' : c.color;
+        let displayName = c.id === 'yellow' ? 'ピンク' : c.name;
+        card.innerHTML = `<div class="char-dot" style="color:${dotColor}">●</div><div class="char-name">${displayName}</div><div style="font-size:9px;color:#666;">${c.req===0?'初期':c.req+'m解禁'}</div>`;
         if(!locked) card.onclick = () => { activeCharId = c.id; renderCharMenu(); };
         container.appendChild(card);
     });
