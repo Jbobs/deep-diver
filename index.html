@@ -248,7 +248,7 @@ function endGame() {
     document.getElementById('screen-gameover').classList.remove('hidden');
     renderCharMenu();
 }
-// キャラクターの姿を描画（すべての座標計算を完全に整数化して震えを防止）
+    // キャラクターの姿を描画（すべての座標計算を完全に整数化して震えを防止）
 function drawCharacter(x, y, charId, isFacingLeft) {
     ctx.save();
     // 描画位置をピクセル単位で整数に固定
@@ -469,4 +469,4 @@ window.onload = () => { resizeCanvas(); initMap(); draw(); };
 </script>
 </body>
 </html>
-  
+
