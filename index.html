@@ -18,8 +18,6 @@
             display: block; 
             width: 100%; 
             height: 100%; 
-            image-rendering: -moz-crisp-edges;
-            image-rendering: -webkit-crisp-edges;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
         }
@@ -121,7 +119,6 @@ const COLS = 14; const TILE_SIZE = 30;
 
 let map = []; let items = []; let generatedMaxY = 0; let truePathX = 7;
 
-// キャラクター定義（カービィピンクを含む）
 const CHARACTERS = [
     { id: 'pink', name: 'カービィピンク', color: '#ff8da1', req: 0 },
     { id: 'yellow', name: 'キービィイエロー', color: '#ffd700', req: 50 },
@@ -131,9 +128,9 @@ const CHARACTERS = [
 let activeCharId = 'pink'; let highScore = 0; let totalCoins = 0;
 let currentMode = 'SINGLE'; let peer = null, conn = null; let isHost = false;
 
-// 元の正常に動いていた設定値の構造をベースにする
-let p1 = { subX: 7 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 8, speed: 4, dead: false, flashlightTimer: 99999 };
-let p2 = { subX: 8 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 8, speed: 4, dead: false, flashlightTimer: 99999 };
+// 初期ライトは1200フレーム（約20秒）、アイテムで全回復する仕様
+let p1 = { subX: 7 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 8, speed: 4, dead: false, flashlightTimer: 1200, isFacingLeft: false };
+let p2 = { subX: 8 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 8, speed: 4, dead: false, flashlightTimer: 1200, isFacingLeft: false };
 let gameState = 'START'; let mobileLeftPressed = false, mobileRightPressed = false;
 let cameraY = 0;
 
@@ -163,12 +160,14 @@ function initMap() {
         if (map[y-1]) map[y-1][truePathX] = 0;
         
         if(y % 5 === 0 && Math.random() < 0.3) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'coin' });
+        if(y % 8 === 0 && Math.random() < 0.15) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'light' });
     }
     generatedMaxY = 60;
-    p1.subX = 7 * TILE_SIZE + 4; p1.subY = 2 * TILE_SIZE; p1.dead = false; p1.flashlightTimer = 99999;
-    p2.subX = 8 * TILE_SIZE + 4; p2.subY = 2 * TILE_SIZE; p2.dead = false; p2.flashlightTimer = 99999;
+    p1.subX = 7 * TILE_SIZE + 4; p1.subY = 2 * TILE_SIZE; p1.dead = false; p1.flashlightTimer = 1200; p1.isFacingLeft = false;
+    p2.subX = 8 * TILE_SIZE + 4; p2.subY = 2 * TILE_SIZE; p2.dead = false; p2.flashlightTimer = 1200; p2.isFacingLeft = false;
 }
-    function extendMap() {
+
+function extendMap() {
     let targetY = generatedMaxY + 40;
     for (let y = generatedMaxY; y < targetY; y++) {
         map[y] = new Array(COLS).fill(0);
@@ -183,6 +182,7 @@ function initMap() {
         if (map[y-1]) map[y-1][truePathX] = 0;
 
         if(y % 6 === 0 && Math.random() < 0.3) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'coin' });
+        if(y % 9 === 0 && Math.random() < 0.15) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'light' });
     }
     generatedMaxY = targetY;
 }
@@ -191,7 +191,12 @@ function update() {
     if (gameState !== 'PLAYING') return;
     let me = (currentMode === 'SINGLE' || isHost) ? p1 : p2;
 
-    // 1. 元の安定した落下・衝突判定ロジック
+    // カメラの緩やかな強制スクロール（プレイヤーの進行度に応じて自然についていく）
+    cameraY += 0.35;
+    let targetCamY = me.subY - CANVAS_HEIGHT / 3;
+    if (targetCamY > cameraY) { cameraY += (targetCamY - cameraY) * 0.1; }
+
+    // 1. 安定した落下・衝突判定ロジック
     let nextY = me.subY + 6;
     let onFloor = false;
     let gridY = Math.floor((nextY + me.height) / TILE_SIZE);
@@ -208,8 +213,8 @@ function update() {
 
     // 2. 左右移動処理
     let moveDir = 0;
-    if (mobileLeftPressed) moveDir = -1;
-    if (mobileRightPressed) moveDir = 1;
+    if (mobileLeftPressed) { moveDir = -1; me.isFacingLeft = true; }
+    if (mobileRightPressed) { moveDir = 1; me.isFacingLeft = false; }
     if (moveDir !== 0) {
         let nextX = me.subX + moveDir * me.speed;
         let checkY1 = Math.floor(me.subY / TILE_SIZE);
@@ -221,12 +226,16 @@ function update() {
         }
     }
 
+    // ライトタイマーの減少
+    if (me.flashlightTimer > 0) me.flashlightTimer--;
+
     // 3. アイテム取得・スコア処理
     let myTileX = Math.floor((me.subX + me.width/2)/TILE_SIZE);
     let myTileY = Math.floor((me.subY + me.height/2)/TILE_SIZE);
     items = items.filter(it => {
         if(it.x === myTileX && it.y === myTileY) {
             if(it.type === 'coin') { totalCoins += 1; document.getElementById('ui-coins').innerText = totalCoins; }
+            if(it.type === 'light') { me.flashlightTimer = 1200; } // ライト全回復
             return false;
         }
         return true;
@@ -239,12 +248,15 @@ function update() {
     if (currentDepth >= 500) { gameState = 'CLEAR'; document.getElementById('screen-clear').classList.remove('hidden'); return; }
     if (myTileY + 15 > generatedMaxY) extendMap();
 
-    // 4. 元の安定したカメラ追従（勝手にスクロールしない、画面外即死なし）
-    let targetCamY = me.subY - CANVAS_HEIGHT / 3;
-    if (targetCamY > cameraY) { cameraY += (targetCamY - cameraY) * 0.1; }
+    // 4. 死亡判定：カメラ上部に完全に置いていかれた場合、または完全に真っ暗（ライト切れ）になった場合
+    if (me.subY < cameraY - me.height || me.flashlightTimer <= 0) {
+        me.dead = true;
+        endGame();
+        return;
+    }
 
     if (currentMode === 'MULTI' && conn && conn.open) {
-        conn.send({ type: 'sync', subX: me.subX, subY: me.subY, dead: me.dead, light: me.flashlightTimer });
+        conn.send({ type: 'sync', subX: me.subX, subY: me.subY, dead: me.dead, light: me.flashlightTimer, isFacingLeft: me.isFacingLeft });
     }
 }
 
@@ -257,8 +269,11 @@ function endGame() {
 
 function drawCharacter(x, y, charId, isFacingLeft) {
     ctx.save();
-    // 描画位置も整数化してブレを完全に防止
-    ctx.translate(Math.floor(x) + TILE_SIZE / 2, Math.floor(y) + TILE_SIZE / 2);
+    // 描画位置とカメラ位置の整数化の基準を完全に一致させ、ピクセルブレを徹底ガード
+    let drawX = Math.floor(x) + TILE_SIZE / 2;
+    let drawY = Math.floor(y) + TILE_SIZE / 2 - Math.floor(cameraY);
+    ctx.translate(drawX, drawY);
+    
     if (isFacingLeft) ctx.scale(-1, 1);
 
     let r = TILE_SIZE / 2 - 2;
@@ -269,7 +284,6 @@ function drawCharacter(x, y, charId, isFacingLeft) {
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
 
     // カービィ風の顔パーツ（縦長の目とチーク）
-    // 進行方向（右）を基準に配置、スケール反転で左も自動対応
     ctx.fillStyle = '#222222'; 
     ctx.fillRect(2, -5, 3, 7);  // 前の目
     ctx.fillRect(9, -5, 3, 7);  // 後ろの目
@@ -300,28 +314,58 @@ function draw() {
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     ctx.save();
-    ctx.translate(0, -Math.floor(cameraY)); // カメラ座標を整数化して背景や壁のガタつきを完全ガード
+    // マップ全体を整数化されたカメラ座標でズラす
+    let intCamY = Math.floor(cameraY);
 
     for (let y = 0; y < generatedMaxY; y++) {
         if (!map[y]) continue;
         let tStyle = getLayerStyle(y);
+        // 画面外のタイルは描画スキップして軽量化
+        if (y * TILE_SIZE < intCamY - TILE_SIZE || y * TILE_SIZE > intCamY + CANVAS_HEIGHT) continue;
+        
         for (let x = 0; x < COLS; x++) {
             if (map[y][x] === 1) {
                 ctx.fillStyle = tStyle.wall;
-                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE - intCamY, TILE_SIZE, TILE_SIZE);
             }
         }
     }
     
     items.forEach(it => {
+        if (it.y * TILE_SIZE < intCamY - TILE_SIZE || it.y * TILE_SIZE > intCamY + CANVAS_HEIGHT) return;
         ctx.font = '16px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('🪙', it.x*TILE_SIZE + TILE_SIZE/2, it.y*TILE_SIZE + TILE_SIZE/2);
+        let itemEmoji = it.type === 'coin' ? '🪙' : '🔦';
+        ctx.fillText(itemEmoji, it.x * TILE_SIZE + TILE_SIZE / 2, it.y * TILE_SIZE + TILE_SIZE / 2 - intCamY);
     });
 
-    if(!p1.dead) drawCharacter(p1.subX, p1.subY, activeCharId, mobileLeftPressed);
-    if(currentMode === 'MULTI' && !p2.dead) drawCharacter(p2.subX, p2.subY, 'aqua', false);
+    if(!p1.dead) drawCharacter(p1.subX, p1.subY, activeCharId, p1.isFacingLeft);
+    if(currentMode === 'MULTI' && !p2.dead) drawCharacter(p2.subX, p2.subY, 'aqua', p2.isFacingLeft);
 
     ctx.restore();
+
+    // ライト減少時の視野制限（暗闇マスク）処理
+    if(me.flashlightTimer < 400) {
+        // 残りタイマーに応じて視野が狭まる演出
+        let radius = Math.max(30, Math.min(120, (me.flashlightTimer / 400) * 120));
+        
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.92)';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        ctx.globalCompositeOperation = 'destination-out';
+        
+        let screenX = Math.floor(me.subX) + me.width / 2;
+        let screenY = Math.floor(me.subY) + me.height / 2 - intCamY;
+        
+        let grad = ctx.createRadialGradient(screenX, screenY, radius * 0.2, screenX, screenY, radius);
+        grad.addColorStop(0, 'rgba(0,0,0,1)'); 
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        
+        ctx.fillStyle = grad; 
+        ctx.beginPath(); 
+        ctx.arc(screenX, screenY, radius, 0, Math.PI * 2); 
+        ctx.fill();
+        ctx.restore();
+    }
 }
 
 function loop() { update(); draw(); if (gameState === 'PLAYING') requestAnimationFrame(loop); }
@@ -348,7 +392,14 @@ function initPeer() {
 }
 function setupChatReceiver() {
     conn.on('data', data => {
-        if(data.type === 'sync') { let op = isHost ? p2 : p1; op.subX = data.subX; op.subY = data.subY; op.dead = data.dead; }
+        if(data.type === 'sync') { 
+            let op = isHost ? p2 : p1; 
+            op.subX = data.subX; 
+            op.subY = data.subY; 
+            op.dead = data.dead; 
+            op.flashlightTimer = data.light;
+            op.isFacingLeft = data.isFacingLeft;
+        }
         if(data.type === 'start') { currentMode = 'MULTI'; initMap(); gameState = 'PLAYING'; document.getElementById('screen-start').classList.add('hidden'); requestAnimationFrame(loop); }
     });
 }
