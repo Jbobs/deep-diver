@@ -10,12 +10,12 @@
         body { background-color: #000; color: #fff; font-family: monospace; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
         #game-container { position: relative; width: 100%; max-width: 440px; height: 100%; max-height: 850px; background: #000; display: flex; flex-direction: column; }
         
-        /* 2015.png / 2016.png のシンプルな黒ベースUIを再現 */
+        /* 2017.png のシンプルなUIスタイル（500m対応） */
         #ui-top { display: flex; justify-content: space-between; padding: 16px; background: #000; font-size: 14px; letter-spacing: 1px; }
         .ui-box { background: rgba(255,255,255,0.05); padding: 6px 12px; border: 1px solid #333; border-radius: 4px; }
         
         #canvas-wrapper { flex: 1; position: relative; background: #000; overflow: hidden; }
-        canvas { display: block; width: 100%; height: 100%; }
+        canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; } /* ぼやけ防止 */
         
         #controls { display: flex; height: 90px; background: #000; padding: 10px; gap: 10px; }
         .btn { flex: 1; display: flex; justify-content: center; align-items: center; background: #111; font-size: 16px; color: #aaa; border: 1px solid #333; border-radius: 6px; cursor: pointer; }
@@ -24,7 +24,6 @@
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; text-align: center; padding: 20px; }
         .hidden { display: none !important; }
         
-        /* 2015.png の黄色いフォントと王冠スタイル */
         .overlay h1 { font-size: 36px; color: #ffd700; margin-bottom: 8px; letter-spacing: 4px; font-weight: normal; }
         .overlay p { font-size: 12px; margin-bottom: 24px; color: #888; }
         
@@ -55,7 +54,7 @@
 <body>
 <div id="game-container">
     <div id="ui-top">
-        <div class="ui-box">DEPTH: <span id="ui-depth">0</span>m / 300m</div>
+        <div class="ui-box">DEPTH: <span id="ui-depth">0</span>m / 500m</div>
         <div class="ui-box" style="color: #ffd700;">🪙 <span id="ui-coins">0</span></div>
         <div class="ui-box">HI-SCORE: <span id="ui-high">0</span>m</div>
     </div>
@@ -70,7 +69,7 @@
     <div id="screen-start" class="overlay">
         <div style="font-size:30px; margin-bottom:4px;">👑</div>
         <h1>DEEP DROP</h1>
-        <p>正解ルートを掘り進み、300mの最深部を目指せ！</p>
+        <p>正解ルートを掘り進み、500mの最深部を目指せ！</p>
         <div class="mode-menu" id="mode-selection-group">
             <div class="mode-btn" id="btn-mode-single">🚶 1人プレイではじめる</div>
             <div class="mode-btn" id="btn-mode-multi">👥 2人オンライン通信プレイ</div>
@@ -111,23 +110,24 @@
 
 <script>
 const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
-const COLS = 14; const TILE_SIZE = 30; // 元のグリッド感に合わせたサイズ
+const COLS = 14; const TILE_SIZE = 30;
 let map = []; let items = []; let generatedMaxY = 0; let truePathX = 7;
 
-// 2015.png に基づく正しいキャラクターリスト
+// キャラクター定義。イエロー、アクア、エメラルド、そして解放要素としてのピンクを完全に独立
 const CHARACTERS = [
     { id: 'yellow', name: 'イエロー', color: '#ffd700', req: 0 },
     { id: 'aqua', name: 'アクア', color: '#00e5ff', req: 50 },
-    { id: 'emerald', name: 'エメラルド', color: '#00e676', req: 150 }
+    { id: 'emerald', name: 'エメラルド', color: '#00e676', req: 150 },
+    { id: 'pink', name: 'ピンク', color: '#ff8da1', req: 300 }
 ];
 let activeCharId = 'yellow'; let highScore = 0; let totalCoins = 0;
 let currentMode = 'SINGLE'; let peer = null, conn = null; let isHost = false;
 
-// プレイヤーのサイズ・判定を穴にスムーズに落ちるよう最適化
 let p1 = { x: 7, y: 2, subX: 7 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 8, speed: 4.5, isFalling: false, dead: false, flashlightTimer: 0 };
 let p2 = { x: 7, y: 2, subX: 7 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 8, speed: 4.5, isFalling: false, dead: false, flashlightTimer: 0 };
 let gameState = 'START'; let mobileLeftPressed = false, mobileRightPressed = false;
-// 2016.png のような「ブロックが敷き詰められた」ステージの雰囲気を再現するカラー
+let cameraY = 0;
+
 function getLayerStyle(y) {
     let d = Math.floor(y / 2);
     if(d < 100) return { bg: '#05070a', wall: '#2c3545', name: '岩石遺跡層' };
@@ -137,42 +137,24 @@ function getLayerStyle(y) {
     return { bg: '#090d16', wall: '#334155', name: '最深崩落界' };
 }
 
-// 2016.png のような、ブロックが敷き詰められた複雑な配置を生成
 function initMap() {
-    map = []; items = []; generatedMaxY = 0; truePathX = 7;
+    map = []; items = []; generatedMaxY = 0; truePathX = 7; cameraY = 0;
+    for (let y = 0; y < 6; y++) { map[y] = new Array(COLS).fill(0); }
     
-    // 初期地点（上部）は少し広めに空けておく
-    for (let y = 0; y < 6; y++) {
-        map[y] = new Array(COLS).fill(0);
-    }
-    
-    // 6行目以降からブロックを敷き詰める
     for (let y = 6; y < 60; y++) {
         map[y] = new Array(COLS).fill(0);
-        
-        // 基本的にランダムでブロックを敷き詰める（2016.pngの雰囲気）
         for (let x = 0; x < COLS; x++) {
-            if (x === 0 || x === COLS - 1) {
-                map[y][x] = 1; // 左右の端は壁
-            } else if (Math.random() < 0.45) {
-                map[y][x] = 1; // 45%の確率でブロックを配置
-            }
+            if (x === 0 || x === COLS - 1) { map[y][x] = 1; }
+            else if (Math.random() < 0.45) { map[y][x] = 1; }
         }
-        
-        // プレイヤーが絶対に詰まないように、下へ進むための「正解の縦穴ルート」を1つ保証する
         if (y % 3 === 0) {
             truePathX = Math.max(1, Math.min(COLS - 2, truePathX + (Math.random() < 0.5 ? -1 : 1)));
         }
         map[y][truePathX] = 0;
-        if (map[y-1]) map[y-1][truePathX] = 0; // 縦に抜けやすくする
+        if (map[y-1]) map[y-1][truePathX] = 0;
         
-        // アイテム配置
-        if(y % 5 === 0 && Math.random() < 0.3) {
-            items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'coin' });
-        }
-        if(y % 8 === 0 && Math.random() < 0.1) {
-            items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'light' });
-        }
+        if(y % 5 === 0 && Math.random() < 0.3) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'coin' });
+        if(y % 8 === 0 && Math.random() < 0.1) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y, type: 'light' });
     }
     generatedMaxY = 60;
     p1.subX = 7 * TILE_SIZE + 4; p1.subY = 2 * TILE_SIZE; p1.dead = false; p1.flashlightTimer = 0;
@@ -203,28 +185,22 @@ function update() {
     if (gameState !== 'PLAYING') return;
     let me = (currentMode === 'SINGLE' || isHost) ? p1 : p2;
 
-    // 複雑なブロック配置でも「引っかからない」ための正確なピクセル衝突判定
-    let nextY = me.subY + 6.5; // 落下速度
+    // スムーズな垂直落下ロジック
+    let nextY = me.subY + 6.5;
     let onFloor = false;
-
-    // 足元のブロック判定（左下と右下の2点でチェック）
     let gridY = Math.floor((nextY + me.height) / TILE_SIZE);
     let pL = Math.floor((me.subX + 4) / TILE_SIZE); 
     let pR = Math.floor((me.subX + me.width - 4) / TILE_SIZE);
 
-    if (map[gridY] && (map[gridY][pL] === 1 || map[gridY][pR] === 1)) {
-        onFloor = true;
-    }
+    if (map[gridY] && (map[gridY][pL] === 1 || map[gridY][pR] === 1)) { onFloor = true; }
 
     if (!onFloor) { 
-        me.isFalling = true; 
-        me.subY = nextY; 
+        me.isFalling = true; me.subY = nextY; 
     } else { 
-        me.isFalling = false; 
-        me.subY = Math.floor(me.subY / TILE_SIZE) * TILE_SIZE; 
+        me.isFalling = false; me.subY = Math.floor(me.subY / TILE_SIZE) * TILE_SIZE; 
     }
 
-    // 左右移動と壁判定
+    // 左右移動判定
     let moveDir = 0;
     if (mobileLeftPressed) moveDir = -1;
     if (mobileRightPressed) moveDir = 1;
@@ -234,7 +210,6 @@ function update() {
         let checkY2 = Math.floor((me.subY + me.height - 1) / TILE_SIZE);
         let checkX = moveDir === -1 ? Math.floor(nextX / TILE_SIZE) : Math.floor((nextX + me.width) / TILE_SIZE);
 
-        // 横に壁やブロックがなければ移動を許可
         if (map[checkY1] && map[checkY1][checkX] !== 1 && map[checkY2] && map[checkY2][checkX] !== 1) {
             me.subX = nextX;
         }
@@ -257,12 +232,16 @@ function update() {
     document.getElementById('ui-depth').innerText = currentDepth;
     if (currentDepth > highScore) { highScore = currentDepth; document.getElementById('ui-high').innerText = highScore; }
 
-    // 最大深度は500m！
+    // 最大深度500m判定
     if (currentDepth >= 500) { gameState = 'CLEAR'; document.getElementById('screen-clear').classList.remove('hidden'); return; }
     if (myTileY + 15 > generatedMaxY) extendMap();
 
-    let cameraY = me.subY - canvas.height / 3; if (cameraY < 0) cameraY = 0;
-    if (me.subY < cameraY - 30) { me.dead = true; endGame(); }
+    // 理想的なカメラスクロール（自動でじわじわ追従、または一定以上の速度でスクロール）
+    let targetCamY = me.subY - (canvas.height / window.devicePixelRatio) / 3;
+    if (targetCamY > cameraY) { cameraY += (targetCamY - cameraY) * 0.1; }
+
+    // 【修正】画面上部（カメラ上端）に押しつぶされる、または置いていかれたら即ゲームオーバー
+    if (me.subY < cameraY) { me.dead = true; endGame(); }
 
     if (currentMode === 'MULTI' && conn && conn.open) {
         conn.send({ type: 'sync', subX: me.subX, subY: me.subY, dead: me.dead, light: me.flashlightTimer });
@@ -276,57 +255,63 @@ function endGame() {
     renderCharMenu();
 }
 
-// ピンクのキャラ（カービィ風ドット絵）を描画する処理
-function drawKirby(x, y, colorTheme, isFacingLeft) {
+// キャラクターの姿を描画（イエローはイエローのドット絵、ピンクはピンクのカービィ風に完全に分離）
+function drawCharacter(x, y, charId, isFacingLeft) {
     ctx.save();
     ctx.translate(x + p1.width / 2, y + p1.height / 2);
     if (isFacingLeft) ctx.scale(-1, 1);
 
     let r = p1.width / 2;
+    let targetChar = CHARACTERS.find(c => c.id === charId) || CHARACTERS[0];
 
-    // まるい体
-    ctx.fillStyle = colorTheme;
+    // 体を描画
+    ctx.fillStyle = targetChar.color;
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
 
-    // つぶらな縦目
-    ctx.fillStyle = '#222';
-    ctx.fillRect(r * 0.2, -r * 0.3, r * 0.15, r * 0.4);
-    ctx.fillRect(r * 0.6, -r * 0.3, r * 0.15, r * 0.4);
-
-    // 目のハイライト（白）
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(r * 0.2, -r * 0.3, r * 0.15, r * 0.15);
-    ctx.fillRect(r * 0.6, -r * 0.3, r * 0.15, r * 0.15);
-
-    // ほっぺ（チーク）
-    ctx.fillStyle = '#ff43a1';
-    ctx.beginPath(); ctx.arc(r * 0.1, r * 0.1, r * 0.15, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(r * 0.8, r * 0.1, r * 0.15, 0, Math.PI * 2); ctx.fill();
-
-    // にっこり口
-    ctx.strokeStyle = '#222'; ctx.lineWidth = 1.5; ctx.beginPath();
-    ctx.arc(r * 0.45, r * 0.05, r * 0.12, 0, Math.PI); ctx.stroke();
+    if (charId === 'pink') {
+        // ピンク（カービィ風）の顔パーツ
+        ctx.fillStyle = '#222';
+        ctx.fillRect(r * 0.2, -r * 0.3, r * 0.15, r * 0.4);
+        ctx.fillRect(r * 0.6, -r * 0.3, r * 0.15, r * 0.4);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(r * 0.2, -r * 0.3, r * 0.15, r * 0.15);
+        ctx.fillRect(r * 0.6, -r * 0.3, r * 0.15, r * 0.15);
+        ctx.fillStyle = '#ff43a1';
+        ctx.beginPath(); ctx.arc(r * 0.1, r * 0.1, r * 0.15, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(r * 0.8, r * 0.1, r * 0.15, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#222'; ctx.lineWidth = 1.5; ctx.beginPath();
+        ctx.arc(r * 0.45, r * 0.05, r * 0.12, 0, Math.PI); ctx.stroke();
+    } else {
+        // 通常スキン（2016.pngのシンプルなイエロー等の顔つき＝縦目のシンプルな黒ドット）
+        ctx.fillStyle = '#000';
+        ctx.fillRect(r * 0.2, -r * 0.3, r * 0.15, r * 0.5);
+        ctx.fillRect(r * 0.6, -r * 0.3, r * 0.15, r * 0.5);
+    }
 
     ctx.restore();
 }
 
 function draw() {
     let me = (currentMode === 'SINGLE' || isHost) ? p1 : p2;
-    let cameraY = me.subY - canvas.height / 3; if (cameraY < 0) cameraY = 0;
-    
     let style = getLayerStyle(Math.floor(me.subY / TILE_SIZE));
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = style.bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.save(); ctx.translate(0, -cameraY);
+    ctx.save(); 
+    // 高解像度ディスプレイ用のスケールを適用
+    let dpr = window.devicePixelRatio || 1;
+    ctx.scale(dpr, dpr);
+    ctx.translate(0, -cameraY);
 
-    // 2016.png 風の敷き詰められたブロックを描画
+    // 敷き詰められたドット絵ブロック
     for (let y = 0; y < generatedMaxY; y++) {
         if (!map[y]) continue;
         let tStyle = getLayerStyle(y);
         for (let x = 0; x < COLS; x++) {
             if (map[y][x] === 1) { 
                 ctx.fillStyle = tStyle.wall; 
-                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE - 1, TILE_SIZE - 1); // 綺麗なグリッド感を出す隙間
+                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE - 0.5, TILE_SIZE - 0.5);
             }
         }
     }
@@ -336,39 +321,34 @@ function draw() {
         ctx.fillText(it.type==='coin'?'🪙':'🔦', it.x*TILE_SIZE + TILE_SIZE/2, it.y*TILE_SIZE + TILE_SIZE/2);
     });
 
-    // ピンクの姿で描画
-    if(!p1.dead) {
-        let col = activeCharId === 'yellow' ? '#ffd700' : (activeCharId === 'aqua' ? '#00e5ff' : '#00e676');
-        // デフォルト選択（ピンク）の場合はこのカラー
-        if (activeCharId === 'yellow') col = '#ff8da1'; // あなたが選んだピンク
-        drawKirby(p1.subX, p1.subY, col, mobileLeftPressed);
-    }
-    if(currentMode === 'MULTI' && !p2.dead) {
-        drawKirby(p2.subX, p2.subY, '#00e5ff', false);
-    }
+    // 各自の選択スキンを正確に反映
+    if(!p1.dead) { drawCharacter(p1.subX, p1.subY, activeCharId, mobileLeftPressed); }
+    if(currentMode === 'MULTI' && !p2.dead) { drawCharacter(p2.subX, p2.subY, 'aqua', false); }
 
     ctx.restore();
 
-    // 2016.png の「くり抜かれたような真ん丸の視界」エフェクト
+    // 視界のくり抜きエフェクト（くっきり綺麗に真ん丸にマスク）
     let baseRadius = me.flashlightTimer > 0 ? 180 : 85;
     let maskCanvas = document.createElement('canvas');
     maskCanvas.width = canvas.width; maskCanvas.height = canvas.height;
     let mctx = maskCanvas.getContext('2d');
     mctx.fillStyle = '#000'; mctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    let screenX = me.subX + me.width/2;
-    let screenY = me.subY + me.height/2 - cameraY;
+    let screenX = (me.subX + me.width/2) * dpr;
+    let screenY = (me.subY + me.height/2 - cameraY) * dpr;
 
     mctx.globalCompositeOperation = 'destination-out';
-    let grad = mctx.createRadialGradient(screenX, screenY, baseRadius * 0.4, screenX, screenY, baseRadius);
+    let grad = mctx.createRadialGradient(screenX, screenY, baseRadius * 0.5 * dpr, screenX, screenY, baseRadius * dpr);
     grad.addColorStop(0, 'rgba(0,0,0,1)');
     grad.addColorStop(1, 'rgba(0,0,0,0)');
-    mctx.fillStyle = grad; mctx.beginPath(); mctx.arc(screenX, screenY, baseRadius, 0, Math.PI*2); mctx.fill();
+    mctx.fillStyle = grad; mctx.beginPath(); mctx.arc(screenX, screenY, baseRadius * dpr, 0, Math.PI*2); mctx.fill();
 
     ctx.drawImage(maskCanvas, 0, 0);
     
-    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(10, 50, 110, 24);
-    ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.fillText(`📍 ${style.name}`, 16, 66);
+    // 現在の階層テキスト表示
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(10 * dpr, 50 * dpr, 110 * dpr, 24 * dpr);
+    ctx.fillStyle = '#fff'; ctx.font = `${11 * dpr}px sans-serif`; 
+    ctx.fillText(`📍 ${style.name}`, 16 * dpr, 66 * dpr);
 }
 
 function loop() { update(); draw(); if (gameState === 'PLAYING') requestAnimationFrame(loop); }
@@ -378,10 +358,7 @@ function renderCharMenu() {
     CHARACTERS.forEach(c => {
         let locked = highScore < c.req; let selected = activeCharId === c.id;
         let card = document.createElement('div'); card.className = `char-card ${selected?'selected':''} ${locked?'locked':''}`;
-        // メニューの表示ドットもピンク色に対応
-        let dotColor = c.id === 'yellow' ? '#ff8da1' : c.color;
-        let displayName = c.id === 'yellow' ? 'ピンク' : c.name;
-        card.innerHTML = `<div class="char-dot" style="color:${dotColor}">●</div><div class="char-name">${displayName}</div><div style="font-size:9px;color:#666;">${c.req===0?'初期':c.req+'m解禁'}</div>`;
+        card.innerHTML = `<div class="char-dot" style="color:${c.color}">●</div><div class="char-name">${c.name}</div><div style="font-size:9px;color:#666;">${c.req===0?'初期':c.req+'m解禁'}</div>`;
         if(!locked) card.onclick = () => { activeCharId = c.id; renderCharMenu(); };
         container.appendChild(card);
     });
@@ -424,64 +401,72 @@ document.getElementById('btn-mode-multi').onclick = () => {
     document.getElementById('mode-selection-group').classList.add('hidden');
     document.getElementById('multi-setup-area').classList.remove('hidden');
     document.getElementById('multi-setup-area').style.display = 'flex';
-    if(!peer) initPeer();
-};
-document.getElementById('btn-connect').onclick = () => {
-    let target = document.getElementById('peer-id-input').value;
-    if(!target) return; document.getElementById('connection-status').innerText = '接続中...';
-    conn = peer.connect(target); isHost = false;
-    conn.on('open', () => {
-        document.getElementById('connection-status').innerText = '接続完了！(GUEST)';
-        setupChatReceiver();
+        if(!peer) initPeer();
+    };
+    document.getElementById('btn-connect').onclick = () => {
+        let target = document.getElementById('peer-id-input').value;
+        if(!target) return; document.getElementById('connection-status').innerText = '接続中...';
+        conn = peer.connect(target); isHost = false;
+        conn.on('open', () => {
+            document.getElementById('connection-status').innerText = '接続完了！(GUEST)';
+            setupChatReceiver();
+        });
+    };
+    document.getElementById('start-multi-btn').onclick = () => {
+        conn.send({ type: 'start' }); currentMode = 'MULTI'; initMap(); gameState = 'PLAYING';
+        document.getElementById('screen-start').classList.add('hidden');
+        requestAnimationFrame(loop);
+    };
+    document.querySelectorAll('.back-to-menu-btn').forEach(b => {
+        b.onclick = () => {
+            document.getElementById('single-setup-area').classList.add('hidden');
+            document.getElementById('single-setup-area').style.display = 'none';
+            document.getElementById('multi-setup-area').classList.add('hidden');
+            document.getElementById('multi-setup-area').style.display = 'none';
+            document.getElementById('mode-selection-group').classList.remove('hidden');
+        };
     });
-};
-document.getElementById('start-multi-btn').onclick = () => {
-    conn.send({ type: 'start' }); currentMode = 'MULTI'; initMap(); gameState = 'PLAYING';
-    document.getElementById('screen-start').classList.add('hidden');
-    requestAnimationFrame(loop);
-};
-document.querySelectorAll('.back-to-menu-btn').forEach(b => {
-    b.onclick = () => {
+    const goHome = () => {
+        document.getElementById('screen-gameover').classList.add('hidden');
+        document.getElementById('screen-clear').classList.add('hidden');
+        document.getElementById('screen-start').classList.remove('hidden');
         document.getElementById('single-setup-area').classList.add('hidden');
         document.getElementById('single-setup-area').style.display = 'none';
         document.getElementById('multi-setup-area').classList.add('hidden');
         document.getElementById('multi-setup-area').style.display = 'none';
         document.getElementById('mode-selection-group').classList.remove('hidden');
+        gameState = 'START'; draw();
     };
-});
-const goHome = () => {
-    document.getElementById('screen-gameover').classList.add('hidden');
-    document.getElementById('screen-clear').classList.add('hidden');
-    document.getElementById('screen-start').classList.remove('hidden');
-    document.getElementById('single-setup-area').classList.add('hidden');
-    document.getElementById('single-setup-area').style.display = 'none';
-    document.getElementById('multi-setup-area').classList.add('hidden');
-    document.getElementById('multi-setup-area').style.display = 'none';
-    document.getElementById('mode-selection-group').classList.remove('hidden');
-    gameState = 'START'; draw();
-};
-document.getElementById('home-button').onclick = goHome;
-document.getElementById('clear-home-button').onclick = goHome;
-document.getElementById('restart-button').onclick = () => {
-    document.getElementById('screen-gameover').classList.add('hidden');
-    initMap(); gameState = 'PLAYING'; requestAnimationFrame(loop);
-};
-document.getElementById('btn-copy').onclick = () => {
-    navigator.clipboard.writeText(document.getElementById('my-id').innerText);
-    alert('IDをコピーしました！');
-};
+    document.getElementById('home-button').onclick = goHome;
+    document.getElementById('clear-home-button').onclick = goHome;
+    document.getElementById('restart-button').onclick = () => {
+        document.getElementById('screen-gameover').classList.add('hidden');
+        initMap(); gameState = 'PLAYING'; requestAnimationFrame(loop);
+    };
+    document.getElementById('btn-copy').onclick = () => {
+        navigator.clipboard.writeText(document.getElementById('my-id').innerText);
+        alert('IDをコピーしました！');
+    };
 
-const bindBtn = (id, action) => {
-    let el = document.getElementById(id);
-    el.addEventListener('touchstart', e => { e.preventDefault(); action(true); });
-    el.addEventListener('touchend', () => action(false));
-};
-bindBtn('btn-left', v => mobileLeftPressed = v);
-bindBtn('btn-right', v => mobileRightPressed = v);
+    const bindBtn = (id, action) => {
+        let el = document.getElementById(id);
+        el.addEventListener('touchstart', e => { e.preventDefault(); action(true); });
+        el.addEventListener('touchend', () => action(false));
+    };
+    bindBtn('btn-left', v => mobileLeftPressed = v);
+    bindBtn('btn-right', v => mobileRightPressed = v);
 
-function resizeCanvas() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; }
-window.addEventListener('resize', resizeCanvas);
-window.onload = () => { resizeCanvas(); initMap(); draw(); };
+    function resizeCanvas() { 
+        let dpr = window.devicePixelRatio || 1;
+        let rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width * dpr; 
+        canvas.height = rect.height * dpr;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        draw();
+    }
+    window.addEventListener('resize', resizeCanvas);
+    window.onload = () => { resizeCanvas(); initMap(); draw(); };
 </script>
 </body>
 </html>
