@@ -14,7 +14,14 @@
         .ui-box { background: rgba(255,255,255,0.05); padding: 6px 12px; border: 1px solid #333; border-radius: 4px; }
         
         #canvas-wrapper { flex: 1; position: relative; background: #000; overflow: hidden; }
-        canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; crisp-edges; }
+        /* 各種ブラウザ用のぼやけ防止CSSを徹底強化 */
+        canvas { 
+            display: block; width: 100%; height: 100%; 
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
         
         #controls { display: flex; height: 90px; background: #000; padding: 10px; gap: 10px; }
         .btn { flex: 1; display: flex; justify-content: center; align-items: center; background: #111; font-size: 16px; color: #aaa; border: 1px solid #333; border-radius: 6px; cursor: pointer; }
@@ -182,7 +189,6 @@ function update() {
     if (gameState !== 'PLAYING') return;
     let me = (currentMode === 'SINGLE' || isHost) ? p1 : p2;
 
-    // 高速移動やガタツキを抑えるため落下速度をきりのいい整数に調整
     let nextY = me.subY + 6;
     let onFloor = false;
     let gridY = Math.floor((nextY + me.height) / TILE_SIZE);
@@ -231,11 +237,19 @@ function update() {
     if (currentDepth >= 500) { gameState = 'CLEAR'; document.getElementById('screen-clear').classList.remove('hidden'); return; }
     if (myTileY + 15 > generatedMaxY) extendMap();
 
-    // カメラの追従計算も整数化して震えを防止
     let targetCamY = Math.floor(me.subY - (canvas.height / (window.devicePixelRatio || 1)) / 3);
     if (targetCamY > cameraY) { cameraY += Math.floor((targetCamY - cameraY) * 0.1) || 1; }
 
-    if (me.subY < cameraY) { me.dead = true; endGame(); }
+    // 【修正：完全ハマり即死判定】
+    // 下が床で、かつ左も右もブロックに完全に挟まれて動けない状態を検知してゲームオーバー
+    let curYGrid = Math.floor(me.subY / TILE_SIZE);
+    let leftGrid = Math.floor((me.subX - 2) / TILE_SIZE);
+    let rightGrid = Math.floor((me.subX + me.width + 2) / TILE_SIZE);
+    if (onFloor && map[curYGrid] && map[curYGrid][leftGrid] === 1 && map[curYGrid][rightGrid] === 1) {
+        me.dead = true; endGame(); return;
+    }
+
+    if (me.subY < cameraY) { me.dead = true; endGame(); return; }
 
     if (currentMode === 'MULTI' && conn && conn.open) {
         conn.send({ type: 'sync', subX: me.subX, subY: me.subY, dead: me.dead, light: me.flashlightTimer });
@@ -248,10 +262,12 @@ function endGame() {
     document.getElementById('screen-gameover').classList.remove('hidden');
     renderCharMenu();
 }
-    // キャラクターの姿を描画（すべての座標計算を完全に整数化して震えを防止）
+// キャラクターの姿を描画（すべてのパーツと計算をDPR基準で完全整数化してブラーを除去）
 function drawCharacter(x, y, charId, isFacingLeft) {
+    let dpr = window.devicePixelRatio || 1;
     ctx.save();
-    // 描画位置をピクセル単位で整数に固定
+    
+    // 描画の基準位置をDPRを掛けたうえで完全にピクセル単位で整数に固定
     let intX = Math.floor(x + p1.width / 2);
     let intY = Math.floor(y + p1.height / 2);
     ctx.translate(intX, intY);
@@ -265,7 +281,7 @@ function drawCharacter(x, y, charId, isFacingLeft) {
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
 
     if (charId === 'pink') {
-        // ピンク（カービィ風）の顔パーツ
+        // ピンク（カービィ風）の顔パーツもすべて整数化
         ctx.fillStyle = '#222';
         ctx.fillRect(Math.floor(r * 0.2), Math.floor(-r * 0.3), Math.floor(r * 0.15), Math.floor(r * 0.4));
         ctx.fillRect(Math.floor(r * 0.6), Math.floor(-r * 0.3), Math.floor(r * 0.15), Math.floor(r * 0.4));
@@ -292,7 +308,7 @@ function draw() {
     let style = getLayerStyle(Math.floor(me.subY / TILE_SIZE));
     let dpr = window.devicePixelRatio || 1;
     
-    // アンチエイリアスを強制無効化してドットをくっきりさせる
+    // システム側の補間（アンチエイリアス）を徹底的にカット
     ctx.imageSmoothingEnabled = false;
     ctx.mozImageSmoothingEnabled = false;
     ctx.webkitImageSmoothingEnabled = false;
@@ -303,9 +319,9 @@ function draw() {
 
     ctx.save(); 
     ctx.scale(dpr, dpr);
-    ctx.translate(0, -Math.floor(cameraY)); // カメラ位置も完全に整数化
+    ctx.translate(0, -Math.floor(cameraY)); // カメラ位置を整数化して背景のガタつきを防止
 
-    // 敷き詰められたドット絵ブロックの描画
+    // ブロック描画
     for (let y = 0; y < generatedMaxY; y++) {
         if (!map[y]) continue;
         let tStyle = getLayerStyle(y);
@@ -327,24 +343,32 @@ function draw() {
 
     ctx.restore();
 
-    // 視界のくり抜きエフェクト（マスク描画のブレも補正）
+    // 【最重要修正】視界マスク（暗闇エフェクト）のサイズと座標をDPR基準で完全に整数化（これがブラーの主因でした）
     let baseRadius = me.flashlightTimer > 0 ? 180 : 85;
     let maskCanvas = document.createElement('canvas');
     maskCanvas.width = canvas.width; maskCanvas.height = canvas.height;
     let mctx = maskCanvas.getContext('2d');
+    
+    mctx.imageSmoothingEnabled = false;
+    mctx.webkitImageSmoothingEnabled = false;
+    
     mctx.fillStyle = '#000'; mctx.fillRect(0, 0, canvas.width, canvas.height);
 
     let screenX = Math.floor((me.subX + me.width/2) * dpr);
     let screenY = Math.floor((me.subY + me.height/2 - cameraY) * dpr);
+    let radLarge = Math.floor(baseRadius * dpr);
+    let radSmall = Math.floor(baseRadius * 0.5 * dpr);
 
     mctx.globalCompositeOperation = 'destination-out';
-    let grad = mctx.createRadialGradient(screenX, screenY, Math.floor(baseRadius * 0.5 * dpr), screenX, screenY, Math.floor(baseRadius * dpr));
+    let grad = mctx.createRadialGradient(screenX, screenY, radSmall, screenX, screenY, radLarge);
     grad.addColorStop(0, 'rgba(0,0,0,1)');
     grad.addColorStop(1, 'rgba(0,0,0,0)');
-    mctx.fillStyle = grad; mctx.beginPath(); mctx.arc(screenX, screenY, Math.floor(baseRadius * dpr), 0, Math.PI*2); mctx.fill();
+    mctx.fillStyle = grad; mctx.beginPath(); mctx.arc(screenX, screenY, radLarge, 0, Math.PI*2); mctx.fill();
 
     ctx.drawImage(maskCanvas, 0, 0);
     
+    // UIテキスト表示
+    ctx.styleSelection = 'pixelated';
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(Math.floor(10 * dpr), Math.floor(50 * dpr), Math.floor(110 * dpr), Math.floor(24 * dpr));
     ctx.fillStyle = '#fff'; ctx.font = `${Math.floor(11 * dpr)}px sans-serif`; 
     ctx.fillText(`📍 ${style.name}`, Math.floor(16 * dpr), Math.floor(66 * dpr));
@@ -469,4 +493,3 @@ window.onload = () => { resizeCanvas(); initMap(); draw(); };
 </script>
 </body>
 </html>
-
