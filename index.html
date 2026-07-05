@@ -14,11 +14,8 @@
         .ui-box { background: rgba(255,255,255,0.05); padding: 6px 12px; border: 1px solid #333; border-radius: 4px; }
         
         #canvas-wrapper { flex: 1; position: relative; background: #000; overflow: hidden; }
-        /* 各種ブラウザ用のぼやけ防止CSSを徹底強化 */
         canvas { 
             display: block; width: 100%; height: 100%; 
-            image-rendering: -moz-crisp-edges;
-            image-rendering: -webkit-crisp-edges;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
         }
@@ -237,18 +234,11 @@ function update() {
     if (currentDepth >= 500) { gameState = 'CLEAR'; document.getElementById('screen-clear').classList.remove('hidden'); return; }
     if (myTileY + 15 > generatedMaxY) extendMap();
 
-    let targetCamY = Math.floor(me.subY - (canvas.height / (window.devicePixelRatio || 1)) / 3);
-    if (targetCamY > cameraY) { cameraY += Math.floor((targetCamY - cameraY) * 0.1) || 1; }
+    let targetCamY = me.subY - (canvas.height / (window.devicePixelRatio || 1)) / 3;
+    if (targetCamY > cameraY) { cameraY += (targetCamY - cameraY) * 0.1; }
 
-    // 【修正：完全ハマり即死判定】
-    // 下が床で、かつ左も右もブロックに完全に挟まれて動けない状態を検知してゲームオーバー
-    let curYGrid = Math.floor(me.subY / TILE_SIZE);
-    let leftGrid = Math.floor((me.subX - 2) / TILE_SIZE);
-    let rightGrid = Math.floor((me.subX + me.width + 2) / TILE_SIZE);
-    if (onFloor && map[curYGrid] && map[curYGrid][leftGrid] === 1 && map[curYGrid][rightGrid] === 1) {
-        me.dead = true; endGame(); return;
-    }
-
+    // 【原点回帰のゲームオーバー判定】
+    // 動けない場所（ハマり）で下から床が上がってくるか、上に置いていかれたら即死
     if (me.subY < cameraY) { me.dead = true; endGame(); return; }
 
     if (currentMode === 'MULTI' && conn && conn.open) {
@@ -262,72 +252,54 @@ function endGame() {
     document.getElementById('screen-gameover').classList.remove('hidden');
     renderCharMenu();
 }
-// キャラクターの姿を描画（すべてのパーツと計算をDPR基準で完全整数化してブラーを除去）
+// キャラクターの描画（シンプル・軽量・ボケない）
 function drawCharacter(x, y, charId, isFacingLeft) {
-    let dpr = window.devicePixelRatio || 1;
     ctx.save();
-    
-    // 描画の基準位置をDPRを掛けたうえで完全にピクセル単位で整数に固定
-    let intX = Math.floor(x + p1.width / 2);
-    let intY = Math.floor(y + p1.height / 2);
-    ctx.translate(intX, intY);
+    ctx.translate(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
     if (isFacingLeft) ctx.scale(-1, 1);
 
-    let r = Math.floor(p1.width / 2);
+    let r = TILE_SIZE / 2 - 4;
     let targetChar = CHARACTERS.find(c => c.id === charId) || CHARACTERS[0];
 
-    // 体を描画
     ctx.fillStyle = targetChar.color;
     ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
 
     if (charId === 'pink') {
-        // ピンク（カービィ風）の顔パーツもすべて整数化
         ctx.fillStyle = '#222';
-        ctx.fillRect(Math.floor(r * 0.2), Math.floor(-r * 0.3), Math.floor(r * 0.15), Math.floor(r * 0.4));
-        ctx.fillRect(Math.floor(r * 0.6), Math.floor(-r * 0.3), Math.floor(r * 0.15), Math.floor(r * 0.4));
+        ctx.fillRect(4, -6, 4, 8); ctx.fillRect(12, -6, 4, 8);
         ctx.fillStyle = '#fff';
-        ctx.fillRect(Math.floor(r * 0.2), Math.floor(-r * 0.3), Math.floor(r * 0.15), Math.floor(r * 0.15));
-        ctx.fillRect(Math.floor(r * 0.6), Math.floor(-r * 0.3), Math.floor(r * 0.15), Math.floor(r * 0.15));
+        ctx.fillRect(4, -6, 3, 3); ctx.fillRect(12, -6, 3, 3);
         ctx.fillStyle = '#ff43a1';
-        ctx.beginPath(); ctx.arc(Math.floor(r * 0.1), Math.floor(r * 0.1), Math.floor(r * 0.15), 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(Math.floor(r * 0.8), Math.floor(r * 0.1), Math.floor(r * 0.15), 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(2, 2, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(14, 2, 4, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#222'; ctx.lineWidth = 1.5; ctx.beginPath();
-        ctx.arc(Math.floor(r * 0.45), Math.floor(r * 0.05), Math.floor(r * 0.12), 0, Math.PI); ctx.stroke();
+        ctx.arc(8, 0, 4, 0, Math.PI); ctx.stroke();
     } else {
-        // 通常スキン（縦目のシンプルな黒ドット）
         ctx.fillStyle = '#000';
-        ctx.fillRect(Math.floor(r * 0.2), Math.floor(-r * 0.3), Math.floor(r * 0.15), Math.floor(r * 0.5));
-        ctx.fillRect(Math.floor(r * 0.6), Math.floor(-r * 0.3), Math.floor(r * 0.15), Math.floor(r * 0.5));
+        ctx.fillRect(4, -6, 4, 10); ctx.fillRect(12, -6, 4, 10);
     }
-
     ctx.restore();
 }
 
 function draw() {
     let me = (currentMode === 'SINGLE' || isHost) ? p1 : p2;
     let style = getLayerStyle(Math.floor(me.subY / TILE_SIZE));
-    let dpr = window.devicePixelRatio || 1;
-    
-    // システム側の補間（アンチエイリアス）を徹底的にカット
+
     ctx.imageSmoothingEnabled = false;
-    ctx.mozImageSmoothingEnabled = false;
-    ctx.webkitImageSmoothingEnabled = false;
-    ctx.msImageSmoothingEnabled = false;
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = style.bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.fillStyle = style.bg; 
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.save(); 
-    ctx.scale(dpr, dpr);
-    ctx.translate(0, -Math.floor(cameraY)); // カメラ位置を整数化して背景のガタつきを防止
+    ctx.save();
+    ctx.translate(0, -cameraY);
 
-    // ブロック描画
     for (let y = 0; y < generatedMaxY; y++) {
         if (!map[y]) continue;
         let tStyle = getLayerStyle(y);
         for (let x = 0; x < COLS; x++) {
-            if (map[y][x] === 1) { 
-                ctx.fillStyle = tStyle.wall; 
+            if (map[y][x] === 1) {
+                ctx.fillStyle = tStyle.wall;
                 ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
             }
         }
@@ -338,40 +310,21 @@ function draw() {
         ctx.fillText(it.type==='coin'?'🪙':'🔦', it.x*TILE_SIZE + TILE_SIZE/2, it.y*TILE_SIZE + TILE_SIZE/2);
     });
 
-    if(!p1.dead) { drawCharacter(p1.subX, p1.subY, activeCharId, mobileLeftPressed); }
-    if(currentMode === 'MULTI' && !p2.dead) { drawCharacter(p2.subX, p2.subY, 'aqua', false); }
+    if(!p1.dead) drawCharacter(p1.subX, p1.subY, activeCharId, mobileLeftPressed);
+    if(currentMode === 'MULTI' && !p2.dead) drawCharacter(p2.subX, p2.subY, 'aqua', false);
 
     ctx.restore();
 
-    // 【最重要修正】視界マスク（暗闇エフェクト）のサイズと座標をDPR基準で完全に整数化（これがブラーの主因でした）
-    let baseRadius = me.flashlightTimer > 0 ? 180 : 85;
-    let maskCanvas = document.createElement('canvas');
-    maskCanvas.width = canvas.width; maskCanvas.height = canvas.height;
-    let mctx = maskCanvas.getContext('2d');
-    
-    mctx.imageSmoothingEnabled = false;
-    mctx.webkitImageSmoothingEnabled = false;
-    
-    mctx.fillStyle = '#000'; mctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    let screenX = Math.floor((me.subX + me.width/2) * dpr);
-    let screenY = Math.floor((me.subY + me.height/2 - cameraY) * dpr);
-    let radLarge = Math.floor(baseRadius * dpr);
-    let radSmall = Math.floor(baseRadius * 0.5 * dpr);
-
-    mctx.globalCompositeOperation = 'destination-out';
-    let grad = mctx.createRadialGradient(screenX, screenY, radSmall, screenX, screenY, radLarge);
-    grad.addColorStop(0, 'rgba(0,0,0,1)');
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    mctx.fillStyle = grad; mctx.beginPath(); mctx.arc(screenX, screenY, radLarge, 0, Math.PI*2); mctx.fill();
-
-    ctx.drawImage(maskCanvas, 0, 0);
-    
-    // UIテキスト表示
-    ctx.styleSelection = 'pixelated';
-    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(Math.floor(10 * dpr), Math.floor(50 * dpr), Math.floor(110 * dpr), Math.floor(24 * dpr));
-    ctx.fillStyle = '#fff'; ctx.font = `${Math.floor(11 * dpr)}px sans-serif`; 
-    ctx.fillText(`📍 ${style.name}`, Math.floor(16 * dpr), Math.floor(66 * dpr));
+    // 暗闇マスク（描画を重ねるだけのシンプル処理）
+    if(me.flashlightTimer <= 0) {
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalCompositeOperation = 'destination-out';
+        let grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2 - (me.subY - cameraY - canvas.height/3), 20, canvas.width/2, canvas.height/2 - (me.subY - cameraY - canvas.height/3), 150);
+        grad.addColorStop(0, 'rgba(0,0,0,1)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2 - (me.subY - cameraY - canvas.height/3), 150, 0, Math.PI*2); ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+    }
 }
 
 function loop() { update(); draw(); if (gameState === 'PLAYING') requestAnimationFrame(loop); }
@@ -381,7 +334,7 @@ function renderCharMenu() {
     CHARACTERS.forEach(c => {
         let locked = highScore < c.req; let selected = activeCharId === c.id;
         let card = document.createElement('div'); card.className = `char-card ${selected?'selected':''} ${locked?'locked':''}`;
-        card.innerHTML = `<div class="char-dot" style="color:${c.color}">●</div><div class="char-name">${c.name}</div><div style="font-size:9px;color:#666;">${c.req===0?'初期':c.req+'m解禁'}</div>`;
+        card.innerHTML = `<div class="char-dot" style="color:${c.color}">●</div><div class="char-name">${c.name}</div><div style="font-size:9px;color:#666;">${c.req===0?'初期':c.req+'m'}</div>`;
         if(!locked) card.onclick = () => { activeCharId = c.id; renderCharMenu(); };
         container.appendChild(card);
     });
@@ -398,98 +351,28 @@ function initPeer() {
 }
 function setupChatReceiver() {
     conn.on('data', data => {
-        if(data.type === 'sync') {
-            let op = isHost ? p2 : p1; op.subX = data.subX; op.subY = data.subY; op.dead = data.dead; op.flashlightTimer = data.light;
-        }
-        if(data.type === 'start') {
-            currentMode = 'MULTI'; initMap(); gameState = 'PLAYING';
-            document.getElementById('screen-start').classList.add('hidden');
-            requestAnimationFrame(loop);
-        }
+        if(data.type === 'sync') { let op = isHost ? p2 : p1; op.subX = data.subX; op.subY = data.subY; op.dead = data.dead; op.flashlightTimer = data.light; }
+        if(data.type === 'start') { currentMode = 'MULTI'; initMap(); gameState = 'PLAYING'; document.getElementById('screen-start').classList.add('hidden'); requestAnimationFrame(loop); }
     });
 }
 
-document.getElementById('btn-mode-single').onclick = () => {
-    document.getElementById('mode-selection-group').classList.add('hidden');
-    document.getElementById('single-setup-area').classList.remove('hidden');
-    document.getElementById('single-setup-area').style.display = 'flex';
-    renderCharMenu();
-};
-document.getElementById('start-single-btn').onclick = () => {
-    currentMode = 'SINGLE'; initMap(); gameState = 'PLAYING';
-    document.getElementById('screen-start').classList.add('hidden');
-    requestAnimationFrame(loop);
-};
-document.getElementById('btn-mode-multi').onclick = () => {
-    document.getElementById('mode-selection-group').classList.add('hidden');
-    document.getElementById('multi-setup-area').classList.remove('hidden');
-    document.getElementById('multi-setup-area').style.display = 'flex';
-    if(!peer) initPeer();
-};
-document.getElementById('btn-connect').onclick = () => {
-    let target = document.getElementById('peer-id-input').value;
-    if(!target) return; document.getElementById('connection-status').innerText = '接続中...';
-    conn = peer.connect(target); isHost = false;
-    conn.on('open', () => {
-        document.getElementById('connection-status').innerText = '接続完了！(GUEST)';
-        setupChatReceiver();
-    });
-};
-document.getElementById('start-multi-btn').onclick = () => {
-    conn.send({ type: 'start' }); currentMode = 'MULTI'; initMap(); gameState = 'PLAYING';
-    document.getElementById('screen-start').classList.add('hidden');
-    requestAnimationFrame(loop);
-};
-document.querySelectorAll('.back-to-menu-btn').forEach(b => {
-    b.onclick = () => {
-        document.getElementById('single-setup-area').classList.add('hidden');
-        document.getElementById('single-setup-area').style.display = 'none';
-        document.getElementById('multi-setup-area').classList.add('hidden');
-        document.getElementById('multi-setup-area').style.display = 'none';
-        document.getElementById('mode-selection-group').classList.remove('hidden');
-    };
-});
-const goHome = () => {
-    document.getElementById('screen-gameover').classList.add('hidden');
-    document.getElementById('screen-clear').classList.add('hidden');
-    document.getElementById('screen-start').classList.remove('hidden');
-    document.getElementById('single-setup-area').classList.add('hidden');
-    document.getElementById('single-setup-area').style.display = 'none';
-    document.getElementById('multi-setup-area').classList.add('hidden');
-    document.getElementById('multi-setup-area').style.display = 'none';
-    document.getElementById('mode-selection-group').classList.remove('hidden');
-    gameState = 'START'; draw();
-};
-document.getElementById('home-button').onclick = goHome;
-document.getElementById('clear-home-button').onclick = goHome;
-document.getElementById('restart-button').onclick = () => {
-    document.getElementById('screen-gameover').classList.add('hidden');
-    initMap(); gameState = 'PLAYING'; requestAnimationFrame(loop);
-};
-document.getElementById('btn-copy').onclick = () => {
-    navigator.clipboard.writeText(document.getElementById('my-id').innerText);
-    alert('IDをコピーしました！');
-};
+document.getElementById('btn-mode-single').onclick = () => { document.getElementById('mode-selection-group').classList.add('hidden'); document.getElementById('single-setup-area').classList.remove('hidden'); renderCharMenu(); };
+document.getElementById('start-single-btn').onclick = () => { currentMode = 'SINGLE'; initMap(); gameState = 'PLAYING'; document.getElementById('screen-start').classList.add('hidden'); requestAnimationFrame(loop); };
+document.getElementById('btn-mode-multi').onclick = () => { document.getElementById('mode-selection-group').classList.add('hidden'); document.getElementById('multi-setup-area').classList.remove('hidden'); if(!peer) initPeer(); };
+document.getElementById('btn-connect').onclick = () => { conn = peer.connect(document.getElementById('peer-id-input').value); isHost = false; setupChatReceiver(); };
+document.getElementById('start-multi-btn').onclick = () => { conn.send({ type: 'start' }); currentMode = 'MULTI'; initMap(); gameState = 'PLAYING'; document.getElementById('screen-start').classList.add('hidden'); requestAnimationFrame(loop); };
+document.querySelectorAll('.back-to-menu-btn').forEach(b => b.onclick = () => { location.reload(); });
+document.getElementById('home-button').onclick = () => location.reload();
+document.getElementById('clear-home-button').onclick = () => location.reload();
+document.getElementById('restart-button').onclick = () => { document.getElementById('screen-gameover').classList.add('hidden'); initMap(); gameState = 'PLAYING'; requestAnimationFrame(loop); };
+document.getElementById('btn-copy').onclick = () => { navigator.clipboard.writeText(document.getElementById('my-id').innerText); alert('IDをコピーしました！'); };
+const bindBtn = (id, action) => { document.getElementById(id).onpointerdown = () => action(true); document.getElementById(id).onpointerup = () => action(false); };
+bindBtn('btn-left', v => mobileLeftPressed = v); bindBtn('btn-right', v => mobileRightPressed = v);
 
-const bindBtn = (id, action) => {
-    let el = document.getElementById(id);
-    el.addEventListener('touchstart', e => { e.preventDefault(); action(true); });
-    el.addEventListener('touchend', () => action(false));
+window.onload = () => { 
+    canvas.width = 440; canvas.height = 850;
+    initMap(); draw(); 
 };
-bindBtn('btn-left', v => mobileLeftPressed = v);
-bindBtn('btn-right', v => mobileRightPressed = v);
-
-function resizeCanvas() { 
-    let dpr = window.devicePixelRatio || 1;
-    let rect = canvas.parentElement.getBoundingClientRect();
-    canvas.width = Math.floor(rect.width * dpr); 
-    canvas.height = Math.floor(rect.height * dpr);
-    canvas.style.width = rect.width + 'px';
-    canvas.style.height = rect.height + 'px';
-    draw();
-}
-window.addEventListener('resize', resizeCanvas);
-window.onload = () => { resizeCanvas(); initMap(); draw(); };
 </script>
 </body>
 </html>
