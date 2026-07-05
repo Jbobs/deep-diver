@@ -115,7 +115,6 @@ let p1 = { x: 8, y: 2, subX: 8 * TILE_SIZE, subY: 2 * TILE_SIZE, width: TILE_SIZ
 let p2 = { x: 8, y: 2, subX: 8 * TILE_SIZE, subY: 2 * TILE_SIZE, width: TILE_SIZE - 6, speed: 4.5, isFalling: false, dead: false, flashlightTimer: 0 };
 let gameState = 'START'; let mobileLeftPressed = false, mobileRightPressed = false;
 
-// エリアごとの色彩定義 (5つの層)
 function getLayerStyle(y) {
     let d = Math.floor(y / 2);
     if(d < 100) return { bg: '#030406', wall: '#343b4f', name: '岩石遺跡層' };
@@ -160,9 +159,7 @@ function extendMap() {
 function update() {
     if (gameState !== 'PLAYING') return;
     let me = (currentMode === 'SINGLE' || isHost) ? p1 : p2;
-    let op = (currentMode === 'SINGLE' || isHost) ? p2 : p1;
 
-    // 自分の物理移動・落下処理
     let gridY = Math.floor((me.subY + TILE_SIZE) / TILE_SIZE);
     let pL = Math.floor(me.subX / TILE_SIZE), pR = Math.floor((me.subX + me.width) / TILE_SIZE);
     let onFloor = (map[gridY] && (map[gridY][pL] === 1 || map[gridY][pR] === 1));
@@ -180,7 +177,6 @@ function update() {
 
     if (me.flashlightTimer > 0) me.flashlightTimer--;
 
-    // アイテム回収判定
     let myTileX = Math.floor((me.subX + me.width/2)/TILE_SIZE);
     let myTileY = Math.floor((me.subY + TILE_SIZE/2)/TILE_SIZE);
     items = items.filter(it => {
@@ -199,11 +195,9 @@ function update() {
     if (currentDepth >= 500) { gameState = 'CLEAR'; document.getElementById('screen-clear').classList.remove('hidden'); return; }
     if (myTileY + 15 > generatedMaxY) extendMap();
 
-    // 挟まれ・デッドエンド死亡判定
     let cameraY = me.subY - canvas.height / 3; if (cameraY < 0) cameraY = 0;
     if (me.subY < cameraY - 20) { me.dead = true; endGame(); }
 
-    // 通信データの同期
     if (currentMode === 'MULTI' && conn && conn.open) {
         conn.send({ type: 'sync', subX: me.subX, subY: me.subY, dead: me.dead, light: me.flashlightTimer });
     }
@@ -225,7 +219,6 @@ function draw() {
 
     ctx.save(); ctx.translate(0, -cameraY);
 
-    // マップとアイテムの描画
     for (let y = 0; y < generatedMaxY; y++) {
         if (!map[y]) continue;
         let tStyle = getLayerStyle(y);
@@ -238,12 +231,10 @@ function draw() {
         ctx.fillText(it.type==='coin'?'🪙':'🔦', it.x*TILE_SIZE + TILE_SIZE/2, it.y*TILE_SIZE + TILE_SIZE/2);
     });
 
-    // プレイヤー描画
     let c1 = CHARACTERS.find(c=>c.id===activeCharId)?.color || '#ffca28';
     if(!p1.dead) { ctx.fillStyle = c1; ctx.fillRect(p1.subX, p1.subY, p1.width, TILE_SIZE - 6); }
     if(currentMode === 'MULTI' && !p2.dead) { ctx.fillStyle = '#00e5ff'; ctx.fillRect(p2.subX, p2.subY, p2.width, TILE_SIZE - 6); }
 
-    // 暗闇＆フラッシュライト効果
     if (me.flashlightTimer <= 0) {
         ctx.restore();
         ctx.fillStyle = 'rgba(0, 0, 0, 0.75)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -252,7 +243,6 @@ function draw() {
 
     ctx.restore();
     
-    // エリア名の表示
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(10, 50, 110, 24);
     ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.fillText(`📍 ${style.name}`, 16, 66);
 }
@@ -270,7 +260,6 @@ function renderCharMenu() {
     });
 }
 
-// オンライン通信周りのロジック
 function initPeer() {
     peer = new Peer();
     peer.on('open', id => { document.getElementById('my-id').innerText = id; });
@@ -293,10 +282,10 @@ function setupChatReceiver() {
     });
 }
 
-// 各種ボタンのクリック設定
 document.getElementById('btn-mode-single').onclick = () => {
     document.getElementById('mode-selection-group').classList.add('hidden');
     document.getElementById('single-setup-area').classList.remove('hidden');
+    document.getElementById('single-setup-area').style.display = 'flex';
     renderCharMenu();
 };
 document.getElementById('start-single-btn').onclick = () => {
@@ -307,6 +296,7 @@ document.getElementById('start-single-btn').onclick = () => {
 document.getElementById('btn-mode-multi').onclick = () => {
     document.getElementById('mode-selection-group').classList.add('hidden');
     document.getElementById('multi-setup-area').classList.remove('hidden');
+    document.getElementById('multi-setup-area').style.display = 'flex';
     if(!peer) initPeer();
 };
 document.getElementById('btn-connect').onclick = () => {
@@ -326,7 +316,9 @@ document.getElementById('start-multi-btn').onclick = () => {
 document.querySelectorAll('.back-to-menu-btn').forEach(b => {
     b.onclick = () => {
         document.getElementById('single-setup-area').classList.add('hidden');
+        document.getElementById('single-setup-area').style.display = 'none';
         document.getElementById('multi-setup-area').classList.add('hidden');
+        document.getElementById('multi-setup-area').style.display = 'none';
         document.getElementById('mode-selection-group').classList.remove('hidden');
     };
 });
@@ -335,7 +327,9 @@ const goHome = () => {
     document.getElementById('screen-clear').classList.add('hidden');
     document.getElementById('screen-start').classList.remove('hidden');
     document.getElementById('single-setup-area').classList.add('hidden');
+    document.getElementById('single-setup-area').style.display = 'none';
     document.getElementById('multi-setup-area').classList.add('hidden');
+    document.getElementById('multi-setup-area').style.display = 'none';
     document.getElementById('mode-selection-group').classList.remove('hidden');
     gameState = 'START'; draw();
 };
@@ -350,7 +344,6 @@ document.getElementById('btn-copy').onclick = () => {
     alert('IDをコピーしました！');
 };
 
-// 操作系
 const bindBtn = (id, action) => {
     let el = document.getElementById(id);
     el.addEventListener('touchstart', e => { e.preventDefault(); action(true); });
@@ -359,4 +352,9 @@ const bindBtn = (id, action) => {
 bindBtn('btn-left', v => mobileLeftPressed = v);
 bindBtn('btn-right', v => mobileRightPressed = v);
 
-function resizeCanvas() { canvas.width = canvas.parentElement.clientWidth; canvas.height =
+function resizeCanvas() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; }
+window.addEventListener('resize', resizeCanvas);
+window.onload = () => { resizeCanvas(); initMap(); draw(); };
+</script>
+</body>
+</html>
