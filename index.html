@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Deep Drop - Ultimate 500m</title>
+    <title>Deep Drop - Solvable 500m</title>
     <style>
         * {
             box-sizing: border-box;
@@ -262,9 +262,7 @@
         <p>正解ルートを見極め、500mの最深部を目指せ！<br>深く潜るほど、視界の広い新調査員が覚醒する。</p>
         
         <div class="char-selector-title">EXPLORER SELECT</div>
-        <div class="char-scroll-box" id="char-container">
-            <!-- JavaScriptで動的にカードを生成 -->
-        </div>
+        <div class="char-scroll-box" id="char-container"></div>
 
         <button id="start-button">START GAME</button>
         <div style="font-size: 10px; color:#666; margin-top:8px;">[PCの方はEnterキーでもスタート可能]</div>
@@ -273,7 +271,7 @@
     <!-- ゲームオーバー画面 -->
     <div id="screen-gameover" class="overlay hidden">
         <h1 style="color:#ff4444;">GAME OVER</h1>
-        <p>行き止まりに囚われた…<br>到達深度: <span id="result-depth">0</span>m</p>
+        <p>行き致まりに囚われた…<br>到達深度: <span id="result-depth">0</span>m</p>
         <p style="color:#ffd700; font-size:14px;">今回獲得コイン: +<span id="result-coins">0</span></p>
         <div id="unlock-msg" style="color: #00e5ff; font-size:12px; margin-bottom:15px; font-weight:bold;" class="hidden">🎉 新しい調査員が覚醒し、ホーム画面で選択可能になりました！</div>
         <div class="btn-group">
@@ -304,9 +302,8 @@ const VIEW_ROWS = 25;
 let map = [];                
 let items = []; 
 let generatedMaxY = 0;      
-let truePathX = 10; 
+let truePathX = 10; // ★ スタート時の正解X座標
 
-// キャラクターデータ定義（500mに合わせて等間隔に調整）
 const CHARACTERS = [
     { id: 'yellow', name: 'イエロー', color: '#fff700', req: 0, scale: 1.0 },
     { id: 'aqua', name: 'アクア', color: '#00e5ff', req: 80, scale: 1.1 },
@@ -374,7 +371,7 @@ function extendMap(targetRows) {
     while (generatedMaxY < targetRows) {
         let y = generatedMaxY;
         
-        // 500m最終ゴールの完全保護 (深度 = y / 2)
+        // 500m最終ゴールの保護
         if (y === 1000) {
             map[y] = new Array(COLS).fill(1);
             map[y][10] = 1; 
@@ -391,28 +388,42 @@ function extendMap(targetRows) {
         }
 
         if (y % 2 === 0) {
+            // --- 床（壁）の段の生成 ---
             map[y] = new Array(COLS).fill(1); 
-            let drift = Math.floor(Math.random() * 5) - 2; 
+            
+            // 1つ前の正解の穴から、少しだけずらして新しい正解の穴を決める
+            let drift = Math.floor(Math.random() * 5) - 2; // -2 〜 +2 の範囲
+            let oldPathX = truePathX;
             truePathX = Math.max(1, Math.min(COLS - 2, truePathX + drift));
+            
+            // ★【重要】今回の正解の穴を開ける
             map[y][truePathX] = 0; 
 
-            // 罠穴生成
+            // 罠（フェイク）の穴を周囲にバラ撒く
             let totalHoles = Math.floor(Math.random() * 2) + 4; 
             for (let i = 0; i < totalHoles; i++) {
                 let fakeX = Math.floor(Math.random() * (COLS - 2)) + 1;
                 if (fakeX !== truePathX) map[y][fakeX] = 0; 
             }
+
+            // ★【重要】1階層上の穴(oldPathX)から、新しく決まった正解の穴(truePathX)まで
+            // プレイヤーが真ん中の通路(y-1)を「真横に移動して辿り着ける」ように、中間の通路の壁を強制くり抜き
+            if (map[y - 1]) {
+                let startX = Math.min(oldPathX, truePathX);
+                let endX = Math.max(oldPathX, truePathX);
+                for (let x = startX; x <= endX; x++) {
+                    map[y - 1][x] = 0; // 正解ルートの横道を絶対に開通させる
+                }
+            }
             
             // アイテム・コイン配置
             if (y > 12) {
-                // 懐中電灯のランダム配置
                 if (Math.random() < 0.10) {
                     let itemX = truePathX;
                     if (Math.random() < 0.5 && truePathX > 0) itemX = truePathX - 1;
                     else if (truePathX < COLS - 1) itemX = truePathX + 1;
                     items.push({ x: itemX, y: y - 1, type: 'flashlight', active: true });
                 }
-                // コインのランダム配置
                 if (Math.random() < 0.25) {
                     let coinX = Math.floor(Math.random() * (COLS - 2)) + 1;
                     if (map[y][coinX] === 0) {
@@ -422,21 +433,16 @@ function extendMap(targetRows) {
             }
             
         } else {
+            // --- 通路（空間）の段の生成 ---
+            // ※ 基本は空間だが、ランダムなパーセンテージで障害物の壁を配置
             map[y] = new Array(COLS).fill(0);
             if (y > 14) {
                 let wallChance = 0.32; 
                 for (let x = 0; x < COLS; x++) {
                     if (Math.random() < wallChance) map[y][x] = 1;
                 }
-                if (map[y - 1]) {
-                    if (map[y][truePathX] === 1) map[y][truePathX] = 0; 
-                    if (truePathX > 0 && map[y][truePathX - 1] === 1) map[y][truePathX - 1] = 0;
-                    if (truePathX < COLS - 1 && map[y][truePathX + 1] === 1) map[y][truePathX + 1] = 0;
-
-                    for(let x = 0; x < COLS; x++) {
-                        if (map[y - 1][x] === 0 && map[y][x] === 1) map[y][x] = 0;
-                    }
-                }
+                // ※ この段の『正解ルートの横移動開通処理』は、次の段（偶数行）が確定したタイミングで
+                // 上述の `if (map[y-1])` ブロックから遡って強制的に穴あけリライトされます。
             }
         }
         generatedMaxY++;
@@ -445,7 +451,7 @@ function extendMap(targetRows) {
 
 function getBiomeColor(y) {
     let depthMeters = Math.floor(y / 2);
-    let interval = 125; // 500mに合わせて間隔を変更
+    let interval = 125; 
     let index = Math.floor(depthMeters / interval);
     if (index >= BIOMES.length - 1) return BIOMES[BIOMES.length - 1].color;
     
@@ -496,9 +502,7 @@ function update() {
     if (keys['ArrowRight'] || keys['d'] || mobileRightPressed) moveDir = 1;
 
     if (moveDir !== 0) {
-        // ★ 落下中の移動制限（速度を35%に減速。ゼロにはしない）
         let currentSpeed = player.isFalling ? player.speed * 0.35 : player.speed;
-        
         let nextSubX = player.subX + moveDir * currentSpeed;
         let checkX = moveDir === -1 ? Math.floor(nextSubX / TILE_SIZE) : Math.floor((nextSubX + player.width) / TILE_SIZE);
         let checkY1 = Math.floor(player.subY / TILE_SIZE);
@@ -601,17 +605,13 @@ function draw() {
             let ty = y * TILE_SIZE;
 
             if (map[y][x] === 1) {
-                // 基本の塗りつぶし
                 ctx.fillStyle = `rgb(${baseColor.r}, ${baseColor.g}, ${baseColor.b})`;
                 ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
 
-                // ★ 工夫したテクスチャ(クラック・岩の質感)の描画
                 ctx.fillStyle = `rgb(${rH}, ${gH}, ${bH})`;
-                // ハイライトの枠線
                 ctx.fillRect(tx, ty, TILE_SIZE, 2); 
                 ctx.fillRect(tx, ty, 2, TILE_SIZE); 
                 
-                // ドット状のクラック模様を埋め込み(単純な単色にしない処理)
                 ctx.fillStyle = `rgb(${rS}, ${gS}, ${bS})`;
                 ctx.fillRect(tx, ty + TILE_SIZE - 2, TILE_SIZE, 2); 
                 ctx.fillRect(tx + TILE_SIZE - 2, ty, 2, TILE_SIZE);
@@ -651,33 +651,17 @@ function draw() {
             let iy = item.y * TILE_SIZE + TILE_SIZE / 2;
             
             if (item.type === 'flashlight') {
-                // ★ 改良版・リアルな懐中電灯グラフィック
                 ctx.shadowBlur = 10; ctx.shadowColor = "#00e5ff";
-                
-                // 持ち手(黒)
-                ctx.fillStyle = "#333333";
-                ctx.fillRect(ix - 2, iy + 1, 4, 6);
-                // ベゼル・照射口(水色と黄色)
-                ctx.fillStyle = "#00e5ff";
-                ctx.fillRect(ix - 4, iy - 4, 8, 5);
-                ctx.fillStyle = "#ffd700";
-                ctx.fillRect(ix - 3, iy - 5, 6, 2);
-                // スイッチの赤ドット
-                ctx.fillStyle = "#ff2222";
-                ctx.fillRect(ix - 1, iy + 2, 2, 2);
+                ctx.fillStyle = "#333333"; ctx.fillRect(ix - 2, iy + 1, 4, 6);
+                ctx.fillStyle = "#00e5ff"; ctx.fillRect(ix - 4, iy - 4, 8, 5);
+                ctx.fillStyle = "#ffd700"; ctx.fillRect(ix - 3, iy - 5, 6, 2);
+                ctx.fillStyle = "#ff2222"; ctx.fillRect(ix - 1, iy + 2, 2, 2);
             } 
             else if (item.type === 'coin') {
-                // ★ コインのグラフィック
-                ctx.fillStyle = "#ffd700";
-                ctx.shadowBlur = 8; ctx.shadowColor = "#ffd700";
-                ctx.beginPath();
-                ctx.arc(ix, iy, 6, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 9px monospace";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText("$", ix, iy);
+                ctx.fillStyle = "#ffd700"; ctx.shadowBlur = 8; ctx.shadowColor = "#ffd700";
+                ctx.beginPath(); ctx.arc(ix, iy, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = "#ffffff"; ctx.font = "bold 9px monospace";
+                ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("$", ix, iy);
             }
             else if (item.type === 'chest') {
                 ctx.fillStyle = "#ffd700"; ctx.shadowBlur = 15; ctx.shadowColor = "#ffd700";
@@ -742,7 +726,6 @@ function renderCharacterSelector() {
     CHARACTERS.forEach(c => {
         let card = document.createElement('div');
         card.className = 'char-card';
-        
         let isUnlocked = (highScore >= c.req) || (c.id === 'yellow');
         
         if (!isUnlocked) {
@@ -754,10 +737,8 @@ function renderCharacterSelector() {
             `;
         } else {
             if (c.id === activeCharId) card.classList.add('selected');
-            
             let dotStyle = `color:${c.color};`;
             if (c.id === 'rainbow') dotStyle = `background:linear-gradient(45deg,red,orange,yellow,green,blue,purple);-webkit-background-clip:text;-webkit-text-fill-color:transparent;`;
-            
             let bonusPercent = Math.round((c.scale - 1) * 100);
             let bonusText = bonusPercent === 0 ? '標準' : `視野 +${bonusPercent}%`;
 
@@ -805,7 +786,6 @@ function endGame() {
     document.getElementById('result-depth').innerText = player.maxDepth;
     document.getElementById('result-coins').innerText = sessionCoins;
     
-    // コインの蓄積
     totalCoins += sessionCoins;
     localStorage.setItem('deepDrop_coins_v9', totalCoins);
     document.getElementById('ui-coins').innerText = totalCoins;
@@ -818,11 +798,8 @@ function endGame() {
     }
 
     let newlyUnlocked = CHARACTERS.some(c => oldHighScore < c.req && player.maxDepth >= c.req && c.req > 0);
-    if (newlyUnlocked) {
-        document.getElementById('unlock-msg').classList.remove('hidden');
-    } else {
-        document.getElementById('unlock-msg').classList.add('hidden');
-    }
+    if (newlyUnlocked) document.getElementById('unlock-msg').classList.remove('hidden');
+    else document.getElementById('unlock-msg').classList.add('hidden');
 
     document.getElementById('screen-gameover').classList.remove('hidden');
     document.getElementById('danger-indicator').classList.add('hidden');
@@ -831,7 +808,7 @@ function endGame() {
 function clearGame() {
     gameState = 'CLEAR';
     clearCount++;
-    totalCoins += 100; // クリアボーナス
+    totalCoins += 100; 
     localStorage.setItem('deepDrop_clears_v9', clearCount);
     localStorage.setItem('deepDrop_coins_v9', totalCoins);
     document.getElementById('ui-coins').innerText = totalCoins;
@@ -867,11 +844,8 @@ function returnToHome() {
 window.addEventListener('keydown', e => {
     keys[e.key] = true;
     if (e.key === 'Enter') {
-        if (gameState === 'START' || gameState === 'GAMEOVER') {
-            startGame();
-        } else if (gameState === 'CLEAR') {
-            returnToHome();
-        }
+        if (gameState === 'START' || gameState === 'GAMEOVER') startGame();
+        else if (gameState === 'CLEAR') returnToHome();
     }
 });
 window.addEventListener('keyup', e => keys[e.key] = false);
