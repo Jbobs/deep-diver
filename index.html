@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Deep Drop - Perfect Edition</title>
+    <title>Deep Drop - Kirby Edition</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
@@ -18,11 +18,11 @@
         .btn:active { background: #1b202e; transform: translateY(2px); box-shadow: 0 2px #0f121a; }
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(8, 9, 12, 0.97); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; text-align: center; padding: 20px; }
         .hidden { display: none !important; }
-        .overlay h1 { font-size: 34px; color: #ff9f43; margin-bottom: 6px; font-weight: 900; letter-spacing: 2px; }
+        .overlay h1 { font-size: 34px; color: #ff43a1; margin-bottom: 6px; font-weight: 900; letter-spacing: 2px; text-shadow: 0 0 10px rgba(255,67,161,0.5); }
         .overlay p { font-size: 13px; margin-bottom: 20px; color: #8a99ad; }
         .mode-menu { display: flex; flex-direction: column; gap: 14px; width: 90%; }
         .mode-btn { padding: 16px; font-size: 15px; font-weight: bold; border-radius: 12px; border: 2px solid #3d4763; cursor: pointer; color: #fff; background: #1f232e; }
-        #btn-mode-single { border-color: #ffca28; background: linear-gradient(145deg, #252b3a, #151922); }
+        #btn-mode-single { border-color: #ff43a1; background: linear-gradient(145deg, #3a2530, #22151c); }
         #btn-mode-multi { border-color: #00e5ff; background: linear-gradient(145deg, #1f2a3a, #111822); }
         .online-panel { background: #1f232e; border: 2px solid #3d4763; border-radius: 10px; padding: 12px; width: 90%; margin-bottom: 12px; text-align: left; }
         .online-title { font-size: 11px; color: #ffca28; font-weight: bold; margin-bottom: 6px; }
@@ -31,13 +31,13 @@
         .online-input { width: 100%; padding: 10px; font-size: 13px; background: #0b0c10; color: #fff; border: 1px solid #3d4763; border-radius: 6px; margin-bottom: 8px; }
         .connect-btn { width: 100%; padding: 10px; background: #00e5ff; color: #0b0c10; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; }
         .status-text { font-size: 12px; color: #ff9f43; font-weight: bold; margin-bottom: 10px; }
-        .overlay button.main-action { padding: 14px 20px; font-size: 16px; background: linear-gradient(145deg, #ffca28, #ff9f43); color: #0b0c10; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; width: 90%; margin-top: 8px; }
-        .overlay button.main-action:disabled { background: #3d4763; color: #64748b; cursor: not-allowed; }
+        .overlay button.main-action { padding: 14px 20px; font-size: 16px; background: linear-gradient(145deg, #ff6bb5, #ff43a1); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; width: 90%; margin-top: 8px; box-shadow: 0 4px #b3256d; }
+        .overlay button.main-action:disabled { background: #3d4763; color: #64748b; cursor: not-allowed; box-shadow: none; }
         .overlay button.btn-secondary { background: #1f232e; color: #cbd5e0; border: 1px solid #3d4763; border-radius: 10px; padding: 10px 16px; cursor: pointer; margin-top: 20px; font-size: 13px; width: 70%; }
-        .char-selector-title { font-size: 11px; color: #ffca28; margin-bottom: 8px; font-weight: bold; text-align: left; width: 90%; }
+        .char-selector-title { font-size: 11px; color: #ff43a1; margin-bottom: 8px; font-weight: bold; text-align: left; width: 90%; }
         .char-scroll-box { display: flex; gap: 8px; width: 90%; overflow-x: auto; padding: 10px; background: #0b0c10; border-radius: 10px; margin-bottom: 16px; }
         .char-card { flex: 0 0 95px; padding: 10px 4px; border: 2px solid #3d4763; background: #1f232e; border-radius: 8px; cursor: pointer; text-align: center; }
-        .char-card.selected { border-color: #ffca28; background: linear-gradient(145deg, #2b2718, #1f232e); }
+        .char-card.selected { border-color: #ff43a1; background: linear-gradient(145deg, #3a222e, #1f232e); }
         .char-card.locked { opacity: 0.25; cursor: not-allowed; }
         .char-dot { font-size: 20px; margin-bottom: 2px; }
         .char-name { font-size: 11px; font-weight: bold; }
@@ -101,23 +101,24 @@
 
 <script>
 const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
-const COLS = 16; const TILE_SIZE = 26; const VIEW_ROWS = 24;
+const COLS = 16; const TILE_SIZE = 26;
 let map = []; let items = []; let generatedMaxY = 0; let truePathX = 8;
 const CHARACTERS = [
-    { id: 'yellow', name: 'イエロー', color: '#ffca28', req: 0 },
-    { id: 'aqua', name: 'アクア', color: '#00e5ff', req: 50 },
-    { id: 'ruby', name: 'ルビー', color: '#f87171', req: 150 },
-    { id: 'lime', name: 'ライム', color: '#4ade80', req: 300 }
+    { id: 'pink', name: 'ピンク', color: '#ff8da1', eye: '#232733', cheek: '#ff43a1', req: 0 },
+    { id: 'yellow', name: 'きいろ', color: '#ffe143', eye: '#232733', cheek: '#ff9f43', req: 50 },
+    { id: 'blue', name: 'みずいろ', color: '#43ccff', eye: '#232733', cheek: '#3b82f6', req: 150 },
+    { id: 'green', name: 'きみどり', color: '#76ff43', eye: '#232733', cheek: '#10b981', req: 300 }
 ];
-let activeCharId = 'yellow'; let highScore = 0; let totalCoins = 0;
+let activeCharId = 'pink'; let highScore = 0; let totalCoins = 0;
 let currentMode = 'SINGLE'; let peer = null, conn = null; let isHost = false;
-let p1 = { x: 8, y: 2, subX: 8 * TILE_SIZE, subY: 2 * TILE_SIZE, width: TILE_SIZE - 6, speed: 4.5, isFalling: false, dead: false, flashlightTimer: 0 };
-let p2 = { x: 8, y: 2, subX: 8 * TILE_SIZE, subY: 2 * TILE_SIZE, width: TILE_SIZE - 6, speed: 4.5, isFalling: false, dead: false, flashlightTimer: 0 };
-let gameState = 'START'; let mobileLeftPressed = false, mobileRightPressed = false;
 
+// プレイヤーサイズと判定を最適化（穴にスムーズに落ちるようサイズを少し小ぶりに変更）
+let p1 = { x: 8, y: 2, subX: 8 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 6, speed: 5.0, isFalling: false, dead: false, flashlightTimer: 0 };
+let p2 = { x: 8, y: 2, subX: 8 * TILE_SIZE + 4, subY: 2 * TILE_SIZE, width: TILE_SIZE - 8, height: TILE_SIZE - 6, speed: 5.0, isFalling: false, dead: false, flashlightTimer: 0 };
+let gameState = 'START'; let mobileLeftPressed = false, mobileRightPressed = false;
 function getLayerStyle(y) {
     let d = Math.floor(y / 2);
-    if(d < 100) return { bg: '#030406', wall: '#343b4f', name: '岩石遺跡層' };
+    if(d < 100) return { bg: '#0d0f14', wall: '#343b4f', name: '岩石遺跡層' };
     if(d < 200) return { bg: '#040d1a', wall: '#1d4ed8', name: '深海大氷壁' };
     if(d < 300) return { bg: '#1a0505', wall: '#b91c1c', name: '煉獄灼熱層' };
     if(d < 400) return { bg: '#1e1b4b', wall: '#6d28d9', name: '妖光水晶層' };
@@ -131,14 +132,19 @@ function initMap() {
         if (y > 6 && y % 4 === 0) {
             map[y] = new Array(COLS).fill(1);
             truePathX = Math.max(1, Math.min(COLS - 2, truePathX + (Math.random() < 0.5 ? -1 : 1)));
-            map[y][truePathX] = 0;
-            if(Math.random() < 0.3) items.push({ x: Math.floor(Math.random()*COLS), y: y - 2, type: 'coin' });
-            if(Math.random() < 0.1) items.push({ x: Math.floor(Math.random()*COLS), y: y - 2, type: 'light' });
+            map[y][truePathX] = 0; // 正解ルートの穴
+            
+            // 遊びやすさのため、左右にもランダムで少し穴を広げる
+            if (truePathX > 1 && Math.random() < 0.4) map[y][truePathX - 1] = 0;
+            if (truePathX < COLS - 2 && Math.random() < 0.4) map[y][truePathX + 1] = 0;
+
+            if(Math.random() < 0.3) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y - 2, type: 'coin' });
+            if(Math.random() < 0.1) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y - 2, type: 'light' });
         }
     }
     generatedMaxY = 60;
-    p1.subX = 8 * TILE_SIZE; p1.subY = 2 * TILE_SIZE; p1.dead = false; p1.flashlightTimer = 0;
-    p2.subX = 9 * TILE_SIZE; p2.subY = 2 * TILE_SIZE; p2.dead = false; p2.flashlightTimer = 0;
+    p1.subX = 8 * TILE_SIZE + 4; p1.subY = 2 * TILE_SIZE; p1.dead = false; p1.flashlightTimer = 0;
+    p2.subX = 9 * TILE_SIZE + 4; p2.subY = 2 * TILE_SIZE; p2.dead = false; p2.flashlightTimer = 0;
 }
 
 function extendMap() {
@@ -149,8 +155,11 @@ function extendMap() {
             map[y] = new Array(COLS).fill(1);
             truePathX = Math.max(1, Math.min(COLS - 2, truePathX + (Math.random() < 0.5 ? -1 : 1)));
             map[y][truePathX] = 0;
-            if(Math.random() < 0.4) items.push({ x: Math.floor(Math.random()*COLS), y: y - 2, type: 'coin' });
-            if(Math.random() < 0.15) items.push({ x: Math.floor(Math.random()*COLS), y: y - 2, type: 'light' });
+            if (truePathX > 1 && Math.random() < 0.4) map[y][truePathX - 1] = 0;
+            if (truePathX < COLS - 2 && Math.random() < 0.4) map[y][truePathX + 1] = 0;
+
+            if(Math.random() < 0.4) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y - 2, type: 'coin' });
+            if(Math.random() < 0.15) items.push({ x: Math.floor(Math.random()*(COLS-2))+1, y: y - 2, type: 'light' });
         }
     }
     generatedMaxY = targetY;
@@ -160,29 +169,37 @@ function update() {
     if (gameState !== 'PLAYING') return;
     let me = (currentMode === 'SINGLE' || isHost) ? p1 : p2;
 
-    let gridY = Math.floor((me.subY + TILE_SIZE) / TILE_SIZE);
-    let pL = Math.floor(me.subX / TILE_SIZE), pR = Math.floor((me.subX + me.width) / TILE_SIZE);
+    // 足元の判定（ピクセル単位からグリッドのインデックスを正確に計算）
+    let gridY = Math.floor((me.subY + me.height + 1) / TILE_SIZE);
+    let pL = Math.floor((me.subX + 3) / TILE_SIZE); 
+    let pR = Math.floor((me.subX + me.width - 3) / TILE_SIZE);
+    
     let onFloor = (map[gridY] && (map[gridY][pL] === 1 || map[gridY][pR] === 1));
     
-    if (!onFloor) { me.isFalling = true; me.subY += 6.0; } 
-    else { me.isFalling = false; me.subY = Math.floor(me.subY / TILE_SIZE) * TILE_SIZE; }
+    if (!onFloor) { 
+        me.isFalling = true; 
+        me.subY += 6.5; // 落下速度
+    } else { 
+        me.isFalling = false; 
+        me.subY = Math.floor(me.subY / TILE_SIZE) * TILE_SIZE + (TILE_SIZE - me.height); 
+    }
 
     let moveDir = 0;
     if (mobileLeftPressed) moveDir = -1;
     if (mobileRightPressed) moveDir = 1;
     if (moveDir !== 0) {
         me.subX += moveDir * me.speed;
-        me.subX = Math.max(0, Math.min((COLS - 1) * TILE_SIZE, me.subX));
+        me.subX = Math.max(TILE_SIZE, Math.min((COLS - 2) * TILE_SIZE, me.subX));
     }
 
     if (me.flashlightTimer > 0) me.flashlightTimer--;
 
     let myTileX = Math.floor((me.subX + me.width/2)/TILE_SIZE);
-    let myTileY = Math.floor((me.subY + TILE_SIZE/2)/TILE_SIZE);
+    let myTileY = Math.floor((me.subY + me.height/2)/TILE_SIZE);
     items = items.filter(it => {
         if(it.x === myTileX && it.y === myTileY) {
             if(it.type === 'coin') { totalCoins += 1; document.getElementById('ui-coins').innerText = totalCoins; }
-            if(it.type === 'light') { me.flashlightTimer = 400; }
+            if(it.type === 'light') { me.flashlightTimer = 450; }
             return false;
         }
         return true;
@@ -195,8 +212,9 @@ function update() {
     if (currentDepth >= 500) { gameState = 'CLEAR'; document.getElementById('screen-clear').classList.remove('hidden'); return; }
     if (myTileY + 15 > generatedMaxY) extendMap();
 
+    // スムーズなカメラ追従
     let cameraY = me.subY - canvas.height / 3; if (cameraY < 0) cameraY = 0;
-    if (me.subY < cameraY - 20) { me.dead = true; endGame(); }
+    if (me.subY < cameraY - 30) { me.dead = true; endGame(); }
 
     if (currentMode === 'MULTI' && conn && conn.open) {
         conn.send({ type: 'sync', subX: me.subX, subY: me.subY, dead: me.dead, light: me.flashlightTimer });
@@ -210,6 +228,51 @@ function endGame() {
     renderCharMenu();
 }
 
+// カービィオマージュのドット絵風描画関数
+function drawKirby(x, y, charData, isFacingLeft) {
+    ctx.save();
+    ctx.translate(x + p1.width / 2, y + p1.height / 2);
+    if (isFacingLeft) ctx.scale(-1, 1);
+
+    let r = p1.width / 2;
+
+    // 体（メインの丸）
+    ctx.fillStyle = charData.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // つぶらな目
+    ctx.fillStyle = charData.eye;
+    ctx.beginPath();
+    ctx.arc(r * 0.3, -r * 0.2, r * 0.12, 0, Math.PI * 2);
+    ctx.arc(r * 0.7, -r * 0.2, r * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ハイライト（白目）
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(r * 0.32, -r * 0.25, r * 0.04, 0, Math.PI * 2);
+    ctx.arc(r * 0.72, -r * 0.25, r * 0.04, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ぷにぷにのチーク（ほっぺ）
+    ctx.fillStyle = charData.cheek;
+    ctx.beginPath();
+    ctx.arc(r * 0.15, r * 0.05, r * 0.12, 0, Math.PI * 2);
+    ctx.arc(r * 0.85, r * 0.05, r * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+
+    // にっこりお口
+    ctx.strokeStyle = charData.eye;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(r * 0.5, 0, r * 0.15, 0, Math.PI);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
 function draw() {
     let me = (currentMode === 'SINGLE' || isHost) ? p1 : p2;
     let cameraY = me.subY - canvas.height / 3; if (cameraY < 0) cameraY = 0;
@@ -219,6 +282,7 @@ function draw() {
 
     ctx.save(); ctx.translate(0, -cameraY);
 
+    // 壁・ステージの描画
     for (let y = 0; y < generatedMaxY; y++) {
         if (!map[y]) continue;
         let tStyle = getLayerStyle(y);
@@ -226,24 +290,48 @@ function draw() {
             if (map[y][x] === 1) { ctx.fillStyle = tStyle.wall; ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE); }
         }
     }
+    // アイテム描画
     items.forEach(it => {
         ctx.font = '16px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(it.type==='coin'?'🪙':'🔦', it.x*TILE_SIZE + TILE_SIZE/2, it.y*TILE_SIZE + TILE_SIZE/2);
     });
 
-    let c1 = CHARACTERS.find(c=>c.id===activeCharId)?.color || '#ffca28';
-    if(!p1.dead) { ctx.fillStyle = c1; ctx.fillRect(p1.subX, p1.subY, p1.width, TILE_SIZE - 6); }
-    if(currentMode === 'MULTI' && !p2.dead) { ctx.fillStyle = '#00e5ff'; ctx.fillRect(p2.subX, p2.subY, p2.width, TILE_SIZE - 6); }
-
-    if (me.flashlightTimer <= 0) {
-        ctx.restore();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.save(); ctx.translate(0, -cameraY);
+    // プレイヤー1（カービィ風）を描画
+    let c1Data = CHARACTERS.find(c=>c.id===activeCharId) || CHARACTERS[0];
+    if(!p1.dead) {
+        drawKirby(p1.subX, p1.subY, c1Data, mobileLeftPressed);
+    }
+    // プレイヤー2（マルチ用）を描画
+    if(currentMode === 'MULTI' && !p2.dead) {
+        let c2Data = CHARACTERS.find(c=>c.id==='blue') || CHARACTERS[2];
+        drawKirby(p2.subX, p2.subY, c2Data, false);
     }
 
     ctx.restore();
+
+    // 視界制限（暗闇＆ランタンエフェクト）の処理
+    // 懐中電灯がない時でも、半径80pxの範囲はふんわり見えるように調整
+    let baseRadius = me.flashlightTimer > 0 ? 180 : 80;
     
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(10, 50, 110, 24);
+    let maskCanvas = document.createElement('canvas');
+    maskCanvas.width = canvas.width; maskCanvas.height = canvas.height;
+    let mctx = maskCanvas.getContext('2d');
+    mctx.fillStyle = 'rgba(5, 6, 8, 0.75)'; // 全体の暗さ度合い
+    mctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    let screenX = me.subX + me.width/2;
+    let screenY = me.subY + me.height/2 - cameraY;
+
+    mctx.globalCompositeOperation = 'destination-out';
+    let grad = mctx.createRadialGradient(screenX, screenY, baseRadius * 0.2, screenX, screenY, baseRadius);
+    grad.addColorStop(0, 'rgba(0,0,0,1)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    mctx.fillStyle = grad; mctx.beginPath(); mctx.arc(screenX, screenY, baseRadius, 0, Math.PI*2); mctx.fill();
+
+    ctx.drawImage(maskCanvas, 0, 0);
+    
+    // UI表示
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(10, 50, 110, 24);
     ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.fillText(`📍 ${style.name}`, 16, 66);
 }
 
@@ -254,7 +342,7 @@ function renderCharMenu() {
     CHARACTERS.forEach(c => {
         let locked = highScore < c.req; let selected = activeCharId === c.id;
         let card = document.createElement('div'); card.className = `char-card ${selected?'selected':''} ${locked?'locked':''}`;
-        card.innerHTML = `<div class="char-dot" style="color:${c.color}">■</div><div class="char-name">${c.name}</div><div style="font-size:9px;color:#8a99ad;">${c.req===0?'初期':c.req+'m解禁'}</div>`;
+        card.innerHTML = `<div class="char-dot" style="color:${c.color}">●</div><div class="char-name">${c.name}</div><div style="font-size:9px;color:#8a99ad;">${c.req===0?'初期':c.req+'m解禁'}</div>`;
         if(!locked) card.onclick = () => { activeCharId = c.id; renderCharMenu(); };
         container.appendChild(card);
     });
