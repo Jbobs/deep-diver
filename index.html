@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Deep Drop - Solvable 500m</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Deep Drop - Perfect Edition</title>
     <style>
         * {
             box-sizing: border-box;
@@ -21,12 +21,13 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
+            height: -webkit-fill-available;
         }
         #game-container {
             position: relative;
-            width: 100%;
+            width: 100vw;
             max-width: 480px;
-            height: 100%;
+            height: 100vh;
             max-height: 850px;
             background: #111;
             box-shadow: 0 0 30px rgba(0,0,0,0.9);
@@ -43,10 +44,12 @@
             font-size: 13px;
             font-weight: bold;
             letter-spacing: 1px;
+            z-index: 5;
         }
         .ui-row {
             display: flex;
             justify-content: space-between;
+            align-items: center;
         }
         .ui-box {
             background: #262626;
@@ -54,28 +57,31 @@
             border-radius: 4px;
             border: 1px solid #363636;
         }
-        .ui-coin {
-            color: #ffd700;
-            border-color: #ffd700;
-        }
+        .ui-coin { color: #ffd700; border-color: #ffd700; }
+        .ui-pickaxe { color: #00e5ff; border-color: #00e5ff; }
+        .ui-light { color: #fff; background: #665500; border-color: #ffd700; display: none; }
+
         #canvas-wrapper {
             flex: 1;
             position: relative;
             background: #020202;
             overflow: hidden;
+            width: 100%;
         }
         canvas {
             display: block;
             width: 100%;
             height: 100%;
+            object-fit: contain;
         }
         #controls {
             display: flex;
             height: 110px;
             background: #161616;
             border-top: 2px solid #262626;
-            padding: 10px;
+            padding: 12px 10px;
             gap: 10px;
+            z-index: 5;
         }
         .btn {
             flex: 1;
@@ -83,7 +89,7 @@
             justify-content: center;
             align-items: center;
             background: #262626;
-            font-size: 20px;
+            font-size: 18px;
             font-weight: bold;
             color: #ccc;
             border: 2px solid #363636;
@@ -97,6 +103,29 @@
             transform: translateY(2px);
             box-shadow: 0 2px #111;
         }
+        .btn-pickaxe {
+            flex: 1.2;
+            background: #1a3a40;
+            border-color: #00e5ff;
+            color: #00e5ff;
+            font-size: 15px;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .btn-pickaxe:active {
+            background: #00e5ff;
+            color: #111;
+        }
+        .btn-pickaxe.disabled {
+            opacity: 0.25;
+            border-color: #333;
+            color: #555;
+            background: #1a1a1a;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
         .overlay {
             position: absolute;
             top: 0;
@@ -114,8 +143,8 @@
             overflow-y: auto;
         }
         .hidden { display: none !important; }
-        .overlay h1 { font-size: 32px; color: #ffd700; margin-bottom: 10px; text-shadow: 3px 3px #000; letter-spacing: 2px; }
-        .overlay p { font-size: 13px; margin-bottom: 15px; color: #aaa; line-height: 1.6; }
+        .overlay h1 { font-size: 32px; color: #ffd700; margin-bottom: 5px; text-shadow: 3px 3px #000; letter-spacing: 2px; }
+        .overlay p { font-size: 12px; margin-bottom: 10px; color: #aaa; line-height: 1.5; }
         
         .btn-group {
             display: flex;
@@ -161,16 +190,9 @@
             padding: 1px 5px;
             border-radius: 10px;
             border: 1px solid white;
-            font-family: monospace;
         }
 
-        .char-selector-title {
-            font-size: 12px;
-            color: #ffd700;
-            margin-bottom: 8px;
-            font-weight: bold;
-            letter-spacing: 1px;
-        }
+        .char-selector-title { font-size: 12px; color: #ffd700; margin-bottom: 6px; font-weight: bold; letter-spacing: 1px; }
         .char-scroll-box {
             display: flex;
             gap: 10px;
@@ -180,40 +202,49 @@
             background: #161616;
             border-radius: 8px;
             border: 1px solid #262626;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
-        .char-card {
-            flex: 0 0 110px;
-            padding: 10px 5px;
-            border: 2px solid #333;
-            background: #222;
-            border-radius: 6px;
-            cursor: pointer;
+        .char-card { flex: 0 0 110px; padding: 10px 5px; border: 2px solid #333; background: #222; border-radius: 6px; cursor: pointer; text-align: center; }
+        .char-card.selected { border-color: #ffd700; background: #2c2a1c; }
+        .char-card.locked { opacity: 0.3; cursor: not-allowed; }
+        .char-dot { font-size: 20px; margin-bottom: 3px; line-height: 1; }
+        .char-name { font-size: 11px; font-weight: bold; color: #fff; margin-bottom: 2px; }
+
+        .shop-box {
+            width: 90%;
+            background: #1c1c1c;
+            border: 1px solid #00e5ff;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 15px;
             text-align: center;
         }
-        .char-card.selected {
-            border-color: #ffd700;
-            background: #2c2a1c;
-        }
-        .char-card.locked {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-        .char-dot {
-            font-size: 20px;
-            margin-bottom: 3px;
-            line-height: 1;
-        }
-        .char-name {
-            font-size: 11px;
+        .shop-title {
+            font-size: 12px;
+            color: #00e5ff;
             font-weight: bold;
-            color: #fff;
-            margin-bottom: 2px;
+            margin-bottom: 5px;
+            letter-spacing: 1px;
         }
-        .char-ability {
-            font-size: 9px;
-            color: #aaa;
+        .shop-item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #262626;
+            padding: 6px 12px;
+            border-radius: 6px;
         }
+        .shop-item-info { font-size: 12px; font-weight: bold; color: #fff; text-align: left;}
+        .btn-buy {
+            background: #00e5ff !important;
+            color: #111 !important;
+            font-size: 11px !important;
+            padding: 5px 12px !important;
+            box-shadow: 0 2px #00a0b5 !important;
+            border-radius: 4px !important;
+        }
+        .btn-buy:active { transform: translateY(1px); box-shadow: 0 1px #00a0b5 !important;}
+        .btn-buy.disabled { opacity: 0.3; background: #444 !important; color: #888 !important; box-shadow: none !important; cursor: not-allowed; }
 
         #danger-indicator {
             position: absolute;
@@ -228,6 +259,7 @@
             font-size: 13px;
             box-shadow: 0 0 15px #ff2222;
             animation: blink 0.4s infinite alternate;
+            z-index: 4;
         }
         @keyframes blink { from { opacity: 0.4; transform: translateX(-50%) scale(0.95); } to { opacity: 1; transform: translateX(-50%) scale(1.05); } }
     </style>
@@ -242,6 +274,8 @@
         </div>
         <div class="ui-row" style="margin-top: 2px;">
             <div class="ui-box ui-coin">COINS: <span id="ui-coins">0</span></div>
+            <div class="ui-box ui-pickaxe">⛏️ PICKAXE: <span id="ui-pickaxes">0</span></div>
+            <div class="ui-box ui-light" id="ui-light-box">🔦 LIGHT: <span id="ui-light-timer">0</span>s</div>
         </div>
     </div>
 
@@ -252,6 +286,7 @@
 
     <div id="controls">
         <div class="btn" id="btn-left">◀ LEFT</div>
+        <div class="btn btn-pickaxe disabled" id="btn-use-pickaxe">⛏️ BREAK<br><span style="font-size:10px;">[Space]</span></div>
         <div class="btn" id="btn-right">RIGHT ▶</div>
     </div>
 
@@ -259,36 +294,42 @@
     <div id="screen-start" class="overlay">
         <div id="crown-badge" class="hidden">👑<span id="crown-count">0</span></div>
         <h1>DEEP DROP</h1>
-        <p>正解ルートを見極め、500mの最深部を目指せ！<br>深く潜るほど、視界の広い新調査員が覚醒する。</p>
+        <p>正解ルートを見極め、500mの最深部を目指せ！<br>100m毎に足元の床へ「つるはし宝箱」が飛び出すぞ！</p>
         
         <div class="char-selector-title">EXPLORER SELECT</div>
         <div class="char-scroll-box" id="char-container"></div>
 
+        <!-- ショップ要素 -->
+        <div class="shop-box">
+            <div class="shop-title">⛏️ COIN SHOP ⛏️</div>
+            <div class="shop-item-row">
+                <div class="shop-item-info">つるはし ×1<br><span style="font-size:10px; color:#ffd700;">価格: 15 COINS</span></div>
+                <button class="btn-buy" id="shop-buy-pickaxe">BUY</button>
+            </div>
+        </div>
+
         <button id="start-button">START GAME</button>
-        <div style="font-size: 10px; color:#666; margin-top:8px;">[PCの方はEnterキーでもスタート可能]</div>
+        <div style="font-size: 10px; color:#666; margin-top:6px;">[PCの方はEnterキーでもスタート可能]</div>
     </div>
 
     <!-- ゲームオーバー画面 -->
     <div id="screen-gameover" class="overlay hidden">
         <h1 style="color:#ff4444;">GAME OVER</h1>
-        <p>行き致まりに囚われた…<br>到達深度: <span id="result-depth">0</span>m</p>
+        <p>行き詰まりに囚われた…<br>到達深度: <span id="result-depth">0</span>m</p>
         <p style="color:#ffd700; font-size:14px;">今回獲得コイン: +<span id="result-coins">0</span></p>
-        <div id="unlock-msg" style="color: #00e5ff; font-size:12px; margin-bottom:15px; font-weight:bold;" class="hidden">🎉 新しい調査員が覚醒し、ホーム画面で選択可能になりました！</div>
         <div class="btn-group">
             <button id="restart-button">RETRY</button>
             <button id="home-button" class="btn-secondary">HOME</button>
         </div>
-        <div style="font-size: 11px; color:#777; margin-top:12px;">[PC: Enterキーでリスタート]</div>
     </div>
 
     <!-- クリア画面 -->
     <div id="screen-clear" class="overlay hidden">
         <h1 style="color:#ffd700; text-shadow: 0 0 15px #ffd700;">STAGE CLEAR!</h1>
         <div style="font-size: 50px; margin: 15px 0;">👑</div>
-        <p>500mの最深部に到達し、伝説の宝箱を開けた！<br>おめでとうございます！</p>
+        <p>500mの最深部に到達し、伝説の宝箱を開けた！</p>
         <p style="color:#ffd700; font-size:16px; font-weight:bold; margin-bottom:15px;">クリアボーナスコイン: +100</p>
         <button id="clear-home-button">HOME TO TITLE</button>
-        <div style="font-size: 11px; color:#777; margin-top:12px;">[PC: Enterキーでホームへ戻る]</div>
     </div>
 </div>
 
@@ -299,10 +340,13 @@ const ctx = canvas.getContext('2d');
 const COLS = 20;            
 const TILE_SIZE = 24;       
 const VIEW_ROWS = 25;       
+const BASE_WIDTH = COLS * TILE_SIZE; 
+
 let map = [];                
 let items = []; 
 let generatedMaxY = 0;      
-let truePathX = 10; // ★ スタート時の正解X座標
+let truePathX = 10; 
+let checkPointsTriggered = {}; 
 
 const CHARACTERS = [
     { id: 'yellow', name: 'イエロー', color: '#fff700', req: 0, scale: 1.0 },
@@ -314,11 +358,12 @@ const CHARACTERS = [
     { id: 'rainbow', name: 'プリズム', color: '#ffffff', req: 500, scale: 1.6 }
 ];
 
-let activeCharId = localStorage.getItem('deepDrop_activeChar_v9') || 'yellow';
-let clearCount = parseInt(localStorage.getItem('deepDrop_clears_v9')) || 0;
-let highScore = parseInt(localStorage.getItem('deepDrop_high_v9')) || 0;
-let totalCoins = parseInt(localStorage.getItem('deepDrop_coins_v9')) || 0;
+let activeCharId = localStorage.getItem('deepDrop_activeChar_v11') || 'yellow';
+let clearCount = parseInt(localStorage.getItem('deepDrop_clears_v11')) || 0;
+let highScore = parseInt(localStorage.getItem('deepDrop_high_v11')) || 0;
+let totalCoins = parseInt(localStorage.getItem('deepDrop_coins_v11')) || 0;
 let sessionCoins = 0;
+let shopPurchasedPickaxes = 0; 
 
 let player = {
     x: 10, y: 2,            
@@ -328,7 +373,8 @@ let player = {
     isFalling: false,
     stuckTimer: 0,          
     maxDepth: 0,
-    flashlightTimer: 0 
+    flashlightTimer: 0,
+    pickaxes: 0
 };
 
 document.getElementById('ui-high').innerText = highScore;
@@ -351,6 +397,9 @@ function initMap() {
     player.maxDepth = 0;
     player.stuckTimer = 0;
     player.flashlightTimer = 0;
+    
+    player.pickaxes = shopPurchasedPickaxes;
+    checkPointsTriggered = { 100: false, 200: false, 300: false, 400: false };
     truePathX = 10; 
     
     for (let y = 0; y < 10; y++) {
@@ -364,6 +413,9 @@ function initMap() {
     player.subX = player.x * TILE_SIZE + 3; 
     player.subY = player.y * TILE_SIZE;
 
+    updatePickaxeUI();
+    updateShopUI();
+    document.getElementById('ui-light-box').style.display = 'none';
     renderCharacterSelector();
 }
 
@@ -371,81 +423,95 @@ function extendMap(targetRows) {
     while (generatedMaxY < targetRows) {
         let y = generatedMaxY;
         
-        // 500m最終ゴールの保護
         if (y === 1000) {
             map[y] = new Array(COLS).fill(1);
-            map[y][10] = 1; 
             map[y-1] = new Array(COLS).fill(0);
-            items.push({ x: 10, y: y - 1, type: 'chest', active: true });
+            items.push({ x: 10, y: y - 1, type: 'chest', active: true, popAnim: 0 });
             generatedMaxY = 1001;
             break;
         }
-
-        if (y > 1000) {
-            map[y] = new Array(COLS).fill(1);
-            generatedMaxY++;
-            continue;
-        }
+        if (y > 1000) { map[y] = new Array(COLS).fill(1); generatedMaxY++; continue; }
 
         if (y % 2 === 0) {
-            // --- 床（壁）の段の生成 ---
             map[y] = new Array(COLS).fill(1); 
-            
-            // 1つ前の正解の穴から、少しだけずらして新しい正解の穴を決める
-            let drift = Math.floor(Math.random() * 5) - 2; // -2 〜 +2 の範囲
+            let drift = Math.floor(Math.random() * 5) - 2;
             let oldPathX = truePathX;
             truePathX = Math.max(1, Math.min(COLS - 2, truePathX + drift));
-            
-            // ★【重要】今回の正解の穴を開ける
             map[y][truePathX] = 0; 
 
-            // 罠（フェイク）の穴を周囲にバラ撒く
             let totalHoles = Math.floor(Math.random() * 2) + 4; 
             for (let i = 0; i < totalHoles; i++) {
                 let fakeX = Math.floor(Math.random() * (COLS - 2)) + 1;
                 if (fakeX !== truePathX) map[y][fakeX] = 0; 
             }
 
-            // ★【重要】1階層上の穴(oldPathX)から、新しく決まった正解の穴(truePathX)まで
-            // プレイヤーが真ん中の通路(y-1)を「真横に移動して辿り着ける」ように、中間の通路の壁を強制くり抜き
             if (map[y - 1]) {
                 let startX = Math.min(oldPathX, truePathX);
                 let endX = Math.max(oldPathX, truePathX);
-                for (let x = startX; x <= endX; x++) {
-                    map[y - 1][x] = 0; // 正解ルートの横道を絶対に開通させる
-                }
+                for (let x = startX; x <= endX; x++) map[y - 1][x] = 0;
             }
             
-            // アイテム・コイン配置
             if (y > 12) {
-                if (Math.random() < 0.10) {
-                    let itemX = truePathX;
-                    if (Math.random() < 0.5 && truePathX > 0) itemX = truePathX - 1;
-                    else if (truePathX < COLS - 1) itemX = truePathX + 1;
-                    items.push({ x: itemX, y: y - 1, type: 'flashlight', active: true });
+                if (Math.random() < 0.08) {
+                    let itemX = truePathX === 0 ? 1 : truePathX - 1;
+                    items.push({ x: itemX, y: y - 1, type: 'flashlight', active: true, popAnim: 0 });
                 }
                 if (Math.random() < 0.25) {
                     let coinX = Math.floor(Math.random() * (COLS - 2)) + 1;
-                    if (map[y][coinX] === 0) {
-                        items.push({ x: coinX, y: y - 1, type: 'coin', active: true });
-                    }
+                    if (map[y][coinX] === 0) items.push({ x: coinX, y: y - 1, type: 'coin', active: true, popAnim: 0 });
                 }
             }
-            
         } else {
-            // --- 通路（空間）の段の生成 ---
-            // ※ 基本は空間だが、ランダムなパーセンテージで障害物の壁を配置
             map[y] = new Array(COLS).fill(0);
             if (y > 14) {
                 let wallChance = 0.32; 
                 for (let x = 0; x < COLS; x++) {
                     if (Math.random() < wallChance) map[y][x] = 1;
                 }
-                // ※ この段の『正解ルートの横移動開通処理』は、次の段（偶数行）が確定したタイミングで
-                // 上述の `if (map[y-1])` ブロックから遡って強制的に穴あけリライトされます。
             }
         }
         generatedMaxY++;
+    }
+}
+
+function updatePickaxeUI() {
+    document.getElementById('ui-pickaxes').innerText = player.pickaxes;
+    const btn = document.getElementById('btn-use-pickaxe');
+    if (player.pickaxes > 0) btn.classList.remove('disabled');
+    else btn.classList.add('disabled');
+}
+
+function updateShopUI() {
+    const buyBtn = document.getElementById('shop-buy-pickaxe');
+    document.getElementById('ui-coins').innerText = totalCoins;
+    if (totalCoins >= 15) {
+        buyBtn.classList.remove('disabled');
+    } else {
+        buyBtn.classList.add('disabled');
+    }
+}
+
+function buyPickaxe() {
+    if (totalCoins >= 15) {
+        totalCoins -= 15;
+        shopPurchasedPickaxes++;
+        localStorage.setItem('deepDrop_coins_v11', totalCoins);
+        updateShopUI();
+    }
+}
+
+function usePickaxe() {
+    if (gameState !== 'PLAYING' || player.pickaxes <= 0) return;
+
+    let targetY = Math.floor((player.subY + TILE_SIZE + 2) / TILE_SIZE);
+    let targetX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
+
+    if (map[targetY] && map[targetY][targetX] === 1) {
+        map[targetY][targetX] = 0; 
+        player.pickaxes--;
+        updatePickaxeUI();
+        player.stuckTimer = 0; 
+        document.getElementById('danger-indicator').classList.add('hidden');
     }
 }
 
@@ -467,6 +533,33 @@ function getBiomeColor(y) {
     };
 }
 
+function spawnPickaxeChestAtPlayer(meters) {
+    checkPointsTriggered[meters] = true;
+    let currentY = Math.floor(player.subY / TILE_SIZE);
+    let currentX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
+    
+    let targetX = currentX + 1;
+    if (targetX >= COLS - 1) targetX = currentX - 1;
+    
+    // 空中に固定されないよう、指定Xマスのプレイヤー位置から「一番近い真下の床」を探索
+    let targetY = currentY;
+    while (targetY < generatedMaxY) {
+        // 下のマスが壁、またはその場がしっかり立てる床であるかをチェック
+        if (map[targetY + 1] && map[targetY + 1][targetX] === 1) {
+            break; // 固い地面を見つけたらその上が着地ポイント
+        }
+        targetY++;
+        // 念のため無限落下防止
+        if (targetY > currentY + 15) {
+            targetY = currentY; 
+            break;
+        }
+    }
+    
+    if (map[targetY]) map[targetY][targetX] = 0; 
+    items.push({ x: targetX, y: targetY, type: 'pickaxeBox', active: true, popAnim: 1.0 });
+}
+
 function update() {
     if (gameState !== 'PLAYING') return;
 
@@ -474,7 +567,15 @@ function update() {
     player.y = Math.floor((player.subY + TILE_SIZE / 2) / TILE_SIZE);
 
     if (player.y + VIEW_ROWS > generatedMaxY) extendMap(generatedMaxY + 50);
-    if (player.flashlightTimer > 0) player.flashlightTimer--;
+
+    // タイマーUIの表示管理
+    if (player.flashlightTimer > 0) {
+        player.flashlightTimer--;
+        document.getElementById('ui-light-box').style.display = 'block';
+        document.getElementById('ui-light-timer').innerText = Math.ceil(player.flashlightTimer / 60);
+    } else {
+        document.getElementById('ui-light-box').style.display = 'none';
+    }
 
     let nextGridY = Math.floor((player.subY + TILE_SIZE) / TILE_SIZE);
     let standOnFloor = false;
@@ -491,7 +592,7 @@ function update() {
 
     if (!standOnFloor) {
         player.isFalling = true;
-        player.subY += 6.5; 
+        player.subY += 9.0; // ⚡ 落下速度を本来の快適なスピードに復旧
     } else {
         player.isFalling = false;
         player.subY = Math.floor(player.subY / TILE_SIZE) * TILE_SIZE; 
@@ -515,24 +616,25 @@ function update() {
         if (!collision) player.subX = nextSubX;
     }
 
-    items.forEach(item => {
-        if (item.active && item.y === player.y && item.x === player.x) {
-            if (item.type === 'flashlight') { 
-                item.active = false; 
-                player.flashlightTimer = 300; 
-            }
-            else if (item.type === 'coin') {
-                item.active = false;
-                sessionCoins += 1;
-            }
-            else if (item.type === 'chest') { 
-                item.active = false; 
-                clearGame(); 
-            }
+    let currentDepth = Math.floor(player.subY / TILE_SIZE / 2);
+    [100, 200, 300, 400].forEach(meters => {
+        if (currentDepth >= meters && !checkPointsTriggered[meters]) {
+            spawnPickaxeChestAtPlayer(meters);
         }
     });
 
-    let currentDepth = Math.floor(player.subY / TILE_SIZE / 2);
+    items.forEach(item => {
+        if (item.popAnim > 0) item.popAnim -= 0.08; 
+        if (item.popAnim < 0) item.popAnim = 0;
+
+        if (item.active && item.y === player.y && item.x === player.x) {
+            if (item.type === 'flashlight') { item.active = false; player.flashlightTimer = 450; } // 約7.5秒
+            else if (item.type === 'coin') { item.active = false; sessionCoins += 1; }
+            else if (item.type === 'pickaxeBox') { item.active = false; player.pickaxes++; updatePickaxeUI(); }
+            else if (item.type === 'chest') { item.active = false; clearGame(); }
+        }
+    });
+
     if (currentDepth > player.maxDepth) {
         player.maxDepth = Math.min(500, currentDepth);
         document.getElementById('ui-depth').innerText = player.maxDepth;
@@ -559,9 +661,13 @@ function update() {
     }
 
     if (isStuck) {
-        player.stuckTimer++;
         document.getElementById('danger-indicator').classList.remove('hidden');
-        if (player.stuckTimer > 70) endGame();
+        if (player.pickaxes > 0) {
+            player.stuckTimer = 0; 
+        } else {
+            player.stuckTimer++;
+            if (player.stuckTimer > 70) endGame();
+        }
     } else {
         player.stuckTimer = 0;
         document.getElementById('danger-indicator').classList.add('hidden');
@@ -574,21 +680,12 @@ function draw() {
     if (cameraY < 0) cameraY = 0;
 
     ctx.save();
+    let scaleFactor = canvas.width / BASE_WIDTH;
+    ctx.scale(scaleFactor, scaleFactor);
     ctx.translate(0, -cameraY);
 
     let startRow = Math.floor(cameraY / TILE_SIZE);
     let endRow = startRow + VIEW_ROWS + 2;
-
-    function drawBiomeIcon(iconX, iconY, type, alpha) {
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.35})`;
-        if (type === 'ice') {
-            ctx.fillRect(iconX + 11, iconY + 5, 2, 14); ctx.fillRect(iconX + 5, iconY + 11, 14, 2);
-        } else if (type === 'fire') {
-            ctx.fillRect(iconX + 10, iconY + 4, 4, 16); ctx.fillRect(iconX + 6, iconY + 8, 12, 10);
-        } else if (type === 'ancient') {
-            ctx.fillRect(iconX + 4, iconY + 9, 16, 6); ctx.fillRect(iconX + 10, iconY + 4, 4, 16);
-        }
-    }
 
     for (let y = startRow; y < endRow; y++) {
         if (!map[y]) continue;
@@ -596,9 +693,6 @@ function draw() {
         let rH = Math.min(255, Math.round(baseColor.r * 1.3));
         let gH = Math.min(255, Math.round(baseColor.g * 1.3));
         let bH = Math.min(255, Math.round(baseColor.b * 1.3));
-        let rS = Math.max(0, Math.round(baseColor.r * 0.6));
-        let gS = Math.max(0, Math.round(baseColor.g * 0.6));
-        let bS = Math.max(0, Math.round(baseColor.b * 0.6));
 
         for (let x = 0; x < COLS; x++) {
             let tx = x * TILE_SIZE;
@@ -607,40 +701,12 @@ function draw() {
             if (map[y][x] === 1) {
                 ctx.fillStyle = `rgb(${baseColor.r}, ${baseColor.g}, ${baseColor.b})`;
                 ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
-
                 ctx.fillStyle = `rgb(${rH}, ${gH}, ${bH})`;
                 ctx.fillRect(tx, ty, TILE_SIZE, 2); 
                 ctx.fillRect(tx, ty, 2, TILE_SIZE); 
-                
-                ctx.fillStyle = `rgb(${rS}, ${gS}, ${bS})`;
-                ctx.fillRect(tx, ty + TILE_SIZE - 2, TILE_SIZE, 2); 
-                ctx.fillRect(tx + TILE_SIZE - 2, ty, 2, TILE_SIZE);
-
-                let seed = (x * 7 + y * 13) % 5;
-                ctx.fillStyle = `rgba(${rH}, ${gH}, ${bH}, 0.25)`;
-                if (seed === 0) {
-                    ctx.fillRect(tx + 4, ty + 6, 6, 2);
-                    ctx.fillRect(tx + 8, ty + 8, 2, 4);
-                } else if (seed === 2) {
-                    ctx.fillRect(tx + 12, ty + 12, 4, 4);
-                    ctx.fillRect(tx + 6, ty + 4, 2, 2);
-                } else if (seed === 3) {
-                    ctx.fillRect(tx + 4, ty + 14, 8, 2);
-                }
             } else {
-                let bgR = Math.round(baseColor.r * 0.25);
-                let bgG = Math.round(baseColor.g * 0.25);
-                let bgB = Math.round(baseColor.b * 0.25);
-                ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
+                ctx.fillStyle = `rgb(${Math.round(baseColor.r * 0.25)}, ${Math.round(baseColor.g * 0.25)}, ${Math.round(baseColor.b * 0.25)})`;
                 ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
-
-                let biomeIndex = Math.floor(Math.floor(y/2) / 125);
-                let driftNoise = Math.sin(y * 0.2 + x * 0.1) * 0.5 + 0.5;
-                if (driftNoise > 0.92) {
-                    if (biomeIndex === 1) drawBiomeIcon(tx, ty, 'ice', driftNoise);
-                    else if (biomeIndex === 2) drawBiomeIcon(tx, ty, 'fire', driftNoise);
-                    else if (biomeIndex === 3) drawBiomeIcon(tx, ty, 'ancient', driftNoise);
-                }
             }
         }
     }
@@ -649,109 +715,111 @@ function draw() {
         if (item.active && item.y >= startRow && item.y < endRow) {
             let ix = item.x * TILE_SIZE + TILE_SIZE / 2;
             let iy = item.y * TILE_SIZE + TILE_SIZE / 2;
-            
+            let offsetY = (item.popAnim || 0) * TILE_SIZE;
+            let drawY = iy + offsetY;
+
             if (item.type === 'flashlight') {
-                ctx.shadowBlur = 10; ctx.shadowColor = "#00e5ff";
-                ctx.fillStyle = "#333333"; ctx.fillRect(ix - 2, iy + 1, 4, 6);
-                ctx.fillStyle = "#00e5ff"; ctx.fillRect(ix - 4, iy - 4, 8, 5);
-                ctx.fillStyle = "#ffd700"; ctx.fillRect(ix - 3, iy - 5, 6, 2);
-                ctx.fillStyle = "#ff2222"; ctx.fillRect(ix - 1, iy + 2, 2, 2);
+                // 🔦 レトロなドット絵風ライトデザイン
+                ctx.fillStyle = '#ffcc00'; // 黄色の本体
+                ctx.fillRect(ix - 3, drawY - 6, 6, 12);
+                ctx.fillStyle = '#ffffff'; // 白いレンズ
+                ctx.fillRect(ix - 5, drawY - 8, 10, 3);
+                ctx.fillStyle = '#333333'; // 黒いグリップ
+                ctx.fillRect(ix - 2, drawY + 1, 4, 4);
             } 
             else if (item.type === 'coin') {
-                ctx.fillStyle = "#ffd700"; ctx.shadowBlur = 8; ctx.shadowColor = "#ffd700";
-                ctx.beginPath(); ctx.arc(ix, iy, 6, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = "#ffffff"; ctx.font = "bold 9px monospace";
-                ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("$", ix, iy);
+                ctx.fillStyle = "#ffd700"; ctx.beginPath(); ctx.arc(ix, drawY, 6, 0, Math.PI * 2); ctx.fill();
+            }
+            else if (item.type === 'pickaxeBox') {
+                ctx.fillStyle = "#00e5ff"; ctx.shadowBlur = 12; ctx.shadowColor = "#00e5ff";
+                ctx.fillRect(ix - 10, drawY - 6, 20, 12);
+                ctx.fillStyle = "#ffffff"; ctx.font = "10px monospace"; ctx.fillText("⛏️", ix - 5, drawY + 4);
+                ctx.shadowBlur = 0;
             }
             else if (item.type === 'chest') {
-                ctx.fillStyle = "#ffd700"; ctx.shadowBlur = 15; ctx.shadowColor = "#ffd700";
-                ctx.fillRect(ix - 12, iy - 6, 24, 14); ctx.fillStyle = "#b89b00"; ctx.fillRect(ix - 12, iy - 6, 24, 4);
-                ctx.fillStyle = "#ff1111"; ctx.fillRect(ix - 2, iy, 4, 4);
+                ctx.fillStyle = "#ffd700"; ctx.fillRect(ix - 12, drawY - 6, 24, 14);
             }
-            ctx.shadowBlur = 0;
         }
     });
 
+    // カービィ風キャラ描画
     let activeChar = CHARACTERS.find(c => c.id === activeCharId) || CHARACTERS[0];
     let charColor = activeChar.color;
+    if (activeChar.id === 'rainbow') charColor = `hsl(${(Date.now() / 15) % 360}, 100%, 65%)`;
 
-    if (activeChar.id === 'rainbow') {
-        let hue = (Date.now() / 15) % 360;
-        charColor = `hsl(${hue}, 100%, 65%)`;
-    }
-
-    ctx.fillStyle = charColor;
-    ctx.shadowBlur = 12; ctx.shadowColor = charColor;
-    ctx.beginPath();
     let charX = player.subX + player.width / 2;
     let charY = player.subY + TILE_SIZE / 2;
-    let radius = TILE_SIZE / 2 - 2;
-    if (player.isFalling) ctx.ellipse(charX, charY, radius - 2, radius + 2, 0, 0, Math.PI * 2);
-    else ctx.arc(charX, charY, radius, 0, Math.PI * 2);
+    
+    let radX = TILE_SIZE / 2 - 2;
+    let radY = TILE_SIZE / 2 - 2;
+    if (player.isFalling) {
+        radX -= 1.5; 
+        radY += 2;
+    } else if (keys['ArrowLeft'] || keys['ArrowRight'] || keys['a'] || keys['d'] || mobileLeftPressed || mobileRightPressed) {
+        let walkCycle = Math.sin(Date.now() * 0.015) * 1.0;
+        radX += walkCycle;
+        radY -= walkCycle;
+    }
+
+    ctx.save();
+    ctx.fillStyle = charColor;
+    ctx.shadowBlur = 12; ctx.shadowColor = charColor;
+
+    // 耳（ツノ）
+    ctx.beginPath();
+    ctx.moveTo(charX - radX + 2, charY - radY + 2);
+    ctx.lineTo(charX - radX / 2, charY - radY - 4); 
+    ctx.lineTo(charX, charY - radY + 2);
+    ctx.lineTo(charX + radX / 2, charY - radY - 4); 
+    ctx.lineTo(charX + radX - 2, charY - radY + 2);
+    ctx.fill();
+
+    // 身体
+    ctx.beginPath();
+    ctx.ellipse(charX, charY, radX, radY, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    ctx.fillStyle = "#111"; ctx.fillRect(charX - 3, charY - 3, 2, 4); ctx.fillRect(charX + 1, charY - 3, 2, 4);
-    ctx.strokeStyle = charColor; ctx.lineWidth = 2; ctx.beginPath();
-    ctx.moveTo(charX - 2, charY - radius); ctx.lineTo(charX - 4, charY - radius - 4);
-    ctx.moveTo(charX + 3, charY - radius); ctx.lineTo(charX + 5, charY - radius - 4);
-    ctx.stroke();
+    // おめめ
+    ctx.fillStyle = "#111111";
+    ctx.fillRect(charX - 3, charY - 2, 2, 4); 
+    ctx.fillRect(charX + 1, charY - 2, 2, 4);
 
     ctx.restore();
+    ctx.restore();
 
-    let screenPlayerY = player.subY + TILE_SIZE/2 - cameraY;
-    let screenPlayerX = player.subX + player.width/2;
-    let viewRadiusStart = TILE_SIZE * 1.5 * activeChar.scale;
-    let viewRadiusEnd = TILE_SIZE * 6.5 * activeChar.scale;
+    // 視界制限エフェクト
+    let screenPlayerY = (player.subY + TILE_SIZE/2 - cameraY) * scaleFactor;
+    let screenPlayerX = (player.subX + player.width/2) * scaleFactor;
+    let viewRadiusStart = TILE_SIZE * 1.5 * activeChar.scale * scaleFactor;
+    let viewRadiusEnd = TILE_SIZE * 6.5 * activeChar.scale * scaleFactor;
 
     if (player.flashlightTimer > 0) { viewRadiusStart *= 1.25; viewRadiusEnd *= 1.25; }
 
     let gradient = ctx.createRadialGradient(screenPlayerX, screenPlayerY, viewRadiusStart, screenPlayerX, screenPlayerY, viewRadiusEnd);
     gradient.addColorStop(0, 'rgba(0,0,0,0)');
-    gradient.addColorStop(0.5, 'rgba(0,0,0,0.15)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0.99)'); 
+    gradient.addColorStop(1, 'rgba(0,0,0,0.98)'); 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    if (player.flashlightTimer > 0) {
-        ctx.fillStyle = "rgba(0, 229, 255, 0.3)"; ctx.fillRect(15, 15, 100, 8);
-        ctx.fillStyle = "#00e5ff"; ctx.fillRect(15, 15, (player.flashlightTimer / 300) * 100, 8);
-    }
 }
 
 function renderCharacterSelector() {
     let container = document.getElementById('char-container');
     container.innerHTML = '';
-
     CHARACTERS.forEach(c => {
         let card = document.createElement('div');
         card.className = 'char-card';
         let isUnlocked = (highScore >= c.req) || (c.id === 'yellow');
-        
         if (!isUnlocked) {
             card.classList.add('locked');
-            card.innerHTML = `
-                <div class="char-dot" style="color:#555;">🔒</div>
-                <div class="char-name">${c.req}m報酬</div>
-                <div class="char-ability">未覚醒</div>
-            `;
+            card.innerHTML = `<div class="char-dot" style="color:#555;">🔒</div><div class="char-name">${c.req}m</div>`;
         } else {
             if (c.id === activeCharId) card.classList.add('selected');
-            let dotStyle = `color:${c.color};`;
-            if (c.id === 'rainbow') dotStyle = `background:linear-gradient(45deg,red,orange,yellow,green,blue,purple);-webkit-background-clip:text;-webkit-text-fill-color:transparent;`;
-            let bonusPercent = Math.round((c.scale - 1) * 100);
-            let bonusText = bonusPercent === 0 ? '標準' : `視野 +${bonusPercent}%`;
-
-            card.innerHTML = `
-                <div class="char-dot" style="${dotStyle}">●</div>
-                <div class="char-name">${c.name}</div>
-                <div class="char-ability">${bonusText}</div>
-            `;
-            
+            card.innerHTML = `<div class="char-dot" style="color:${c.color}">●</div><div class="char-name">${c.name}</div>`;
             card.addEventListener('click', () => {
                 if (gameState === 'START') {
                     activeCharId = c.id;
-                    localStorage.setItem('deepDrop_activeChar_v9', activeCharId);
+                    localStorage.setItem('deepDrop_activeChar_v11', activeCharId);
                     renderCharacterSelector();
                     draw();
                 }
@@ -762,8 +830,10 @@ function renderCharacterSelector() {
 }
 
 function resizeCanvas() {
-    canvas.width = canvas.parentElement.clientWidth;
-    canvas.height = canvas.parentElement.clientHeight;
+    const wrapper = document.getElementById('canvas-wrapper');
+    canvas.width = wrapper.clientWidth;
+    canvas.height = wrapper.clientHeight;
+    draw();
 }
 
 function loop() {
@@ -787,56 +857,37 @@ function endGame() {
     document.getElementById('result-coins').innerText = sessionCoins;
     
     totalCoins += sessionCoins;
-    localStorage.setItem('deepDrop_coins_v9', totalCoins);
-    document.getElementById('ui-coins').innerText = totalCoins;
+    shopPurchasedPickaxes = 0; 
+    localStorage.setItem('deepDrop_coins_v11', totalCoins);
     
-    let oldHighScore = highScore;
     if (player.maxDepth > highScore) {
         highScore = player.maxDepth;
-        localStorage.setItem('deepDrop_high_v9', highScore);
-        document.getElementById('ui-high').innerText = highScore;
+        localStorage.setItem('deepDrop_high_v11', highScore);
     }
-
-    let newlyUnlocked = CHARACTERS.some(c => oldHighScore < c.req && player.maxDepth >= c.req && c.req > 0);
-    if (newlyUnlocked) document.getElementById('unlock-msg').classList.remove('hidden');
-    else document.getElementById('unlock-msg').classList.add('hidden');
-
     document.getElementById('screen-gameover').classList.remove('hidden');
-    document.getElementById('danger-indicator').classList.add('hidden');
 }
 
 function clearGame() {
     gameState = 'CLEAR';
     clearCount++;
     totalCoins += 100; 
-    localStorage.setItem('deepDrop_clears_v9', clearCount);
-    localStorage.setItem('deepDrop_coins_v9', totalCoins);
-    document.getElementById('ui-coins').innerText = totalCoins;
-
-    if (highScore < 500) {
-        highScore = 500;
-        localStorage.setItem('deepDrop_high_v9', 500);
-        document.getElementById('ui-high').innerText = 500;
-    }
+    shopPurchasedPickaxes = 0;
+    localStorage.setItem('deepDrop_clears_v11', clearCount);
+    localStorage.setItem('deepDrop_coins_v11', totalCoins);
     document.getElementById('screen-clear').classList.remove('hidden');
-    document.getElementById('danger-indicator').classList.add('hidden');
-}
-
-function updateCrownUI() {
-    if (clearCount > 0) {
-        document.getElementById('crown-badge').classList.remove('hidden');
-        document.getElementById('crown-count').innerText = clearCount;
-    } else {
-        document.getElementById('crown-badge').classList.add('hidden');
-    }
 }
 
 function returnToHome() {
     gameState = 'START';
+    shopPurchasedPickaxes = 0; 
     document.getElementById('screen-gameover').classList.add('hidden');
     document.getElementById('screen-clear').classList.add('hidden');
     document.getElementById('screen-start').classList.remove('hidden');
-    updateCrownUI();
+    if (clearCount > 0) {
+        document.getElementById('crown-badge').classList.remove('hidden');
+        document.getElementById('crown-count').innerText = clearCount;
+    }
+    updateShopUI();
     renderCharacterSelector();
     draw();
 }
@@ -846,6 +897,10 @@ window.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
         if (gameState === 'START' || gameState === 'GAMEOVER') startGame();
         else if (gameState === 'CLEAR') returnToHome();
+    }
+    if (e.key === ' ') {
+        e.preventDefault();
+        usePickaxe();
     }
 });
 window.addEventListener('keyup', e => keys[e.key] = false);
@@ -858,11 +913,8 @@ document.getElementById('btn-left').addEventListener('touchend', () => mobileLef
 document.getElementById('btn-right').addEventListener('touchstart', (e) => { e.preventDefault(); mobileRightPressed = true; });
 document.getElementById('btn-right').addEventListener('touchend', () => mobileRightPressed = false);
 
-document.getElementById('btn-left').addEventListener('mousedown', () => mobileLeftPressed = true);
-document.getElementById('btn-left').addEventListener('mouseup', () => mobileLeftPressed = false);
-document.getElementById('btn-right').addEventListener('mousedown', () => mobileRightPressed = true);
-document.getElementById('btn-right').addEventListener('mouseup', () => mobileRightPressed = false);
-
+document.getElementById('btn-use-pickaxe').addEventListener('click', usePickaxe);
+document.getElementById('shop-buy-pickaxe').addEventListener('click', buyPickaxe);
 document.getElementById('start-button').addEventListener('click', startGame);
 document.getElementById('restart-button').addEventListener('click', startGame);
 document.getElementById('home-button').addEventListener('click', returnToHome);
@@ -871,9 +923,12 @@ document.getElementById('clear-home-button').addEventListener('click', returnToH
 window.addEventListener('resize', resizeCanvas);
 window.onload = () => {
     resizeCanvas();
-    updateCrownUI();
+    if (clearCount > 0) {
+        document.getElementById('crown-badge').classList.remove('hidden');
+        document.getElementById('crown-count').innerText = clearCount;
+    }
+    updateShopUI();
     renderCharacterSelector();
-    draw();
 };
 </script>
 
