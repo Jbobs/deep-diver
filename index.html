@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Deep Drop - Fixed Ladder & Speed Edition</title>
+    <title>Deep Drop - Smooth Ladder Edition</title>
     <style>
         * {
             box-sizing: border-box;
@@ -359,7 +359,7 @@ let ladders = [];
 let generatedMaxY = 0;      
 let truePathX = 10; 
 let checkPointsTriggered = {}; 
-let animationFrameId = null; // ⚡ 加速防止用のID保持変数
+let animationFrameId = null; 
 
 const CHARACTERS = [
     { id: 'yellow', name: 'イエロー', color: '#fff700', req: 0, scale: 1.0 },
@@ -641,6 +641,32 @@ function update() {
     }
 
     let onLadder = isPlayerOnLadder();
+    
+    // 入力方向の決定
+    let moveDir = 0;
+    if (keys['ArrowLeft'] || keys['a'] || mobileLeftPressed) moveDir = -1;
+    if (keys['ArrowRight'] || keys['d'] || mobileRightPressed) moveDir = 1;
+
+    // ⚡ 修正: ラダー上でも、左右入力がある場合はラダーを離れて移動できるように判定を先行
+    let wantToLeaveLadder = false;
+    if (onLadder && moveDir !== 0) {
+        let currentSpeed = player.speed;
+        let nextSubX = player.subX + moveDir * currentSpeed;
+        let checkX = moveDir === -1 ? Math.floor(nextSubX / TILE_SIZE) : Math.floor((nextSubX + player.width) / TILE_SIZE);
+        let checkY1 = Math.floor(player.subY / TILE_SIZE);
+        let checkY2 = Math.floor((player.subY + TILE_SIZE - 1) / TILE_SIZE);
+        
+        // 左右に壁がなければ、ラダー判定を一時的に無視して離脱を許可
+        let sideCollision = false;
+        if (checkX < 0 || checkX >= COLS) sideCollision = true;
+        else if ((map[checkY1] && map[checkY1][checkX] === 1) || (map[checkY2] && map[checkY2][checkX] === 1)) sideCollision = true;
+        
+        if (!sideCollision) {
+            wantToLeaveLadder = true;
+            onLadder = false; // ラダー処理をスキップさせて通常移動へ
+        }
+    }
+
     let nextGridY = Math.floor((player.subY + TILE_SIZE) / TILE_SIZE);
     let standOnFloor = false;
     let pLeftX = Math.floor(player.subX / TILE_SIZE);
@@ -654,19 +680,24 @@ function update() {
         player.subY = 999 * TILE_SIZE;
     }
 
-    // ⚡ 改良版ハシゴ挙動：ハシゴ内にいるときは確実に上に登らせ、上の床を完全に抜けたら着地させる
+    // ⚡ 修正: ラダーの昇降およびトップでのスナップ処理（ガタガタ震えるバグを解消）
     if (onLadder) {
         player.isFalling = false;
         let pCenterX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
-        let aboveY = Math.floor((player.subY + TILE_SIZE - 4) / TILE_SIZE);
+        let currentFootY = Math.floor((player.subY + TILE_SIZE - 1) / TILE_SIZE);
+        let aboveY = currentFootY - 1;
         
-        // ハシゴ最上部かつ次の上のマスに床がある場合だけ、完全にその上に着地
-        if (map[aboveY] && map[aboveY][pCenterX] === 1 && (player.subY % TILE_SIZE <= 2)) {
-            player.subY = aboveY * TILE_SIZE;
+        // ラダーの最上部、かつ上に床がないマスに到達したらピタッと吸着して着地
+        if ((map[aboveY] && map[aboveY][pCenterX] === 0) && !(ladders.some(l => l.x === pCenterX && l.y === aboveY))) {
+            // 上の足場の高さにちょうどスナップ
+            player.subY = (aboveY + 1) * TILE_SIZE - TILE_SIZE;
+            player.isFalling = false;
         } else {
-            player.subY -= 3.5; // スムーズに上昇
+            // スムーズに自動上昇
+            player.subY -= 3.5; 
         }
     } else {
+        // 通常の落下・接地処理
         if (!standOnFloor) {
             player.isFalling = true;
             player.subY += 9.0; 
@@ -676,12 +707,9 @@ function update() {
         }
     }
 
-    let moveDir = 0;
-    if (keys['ArrowLeft'] || keys['a'] || mobileLeftPressed) moveDir = -1;
-    if (keys['ArrowRight'] || keys['d'] || mobileRightPressed) moveDir = 1;
-
+    // 左右の実際の移動処理
     if (moveDir !== 0) {
-        let currentSpeed = player.isFalling ? player.speed * 0.35 : player.speed;
+        let currentSpeed = (player.isFalling && !wantToLeaveLadder) ? player.speed * 0.35 : player.speed;
         let nextSubX = player.subX + moveDir * currentSpeed;
         let checkX = moveDir === -1 ? Math.floor(nextSubX / TILE_SIZE) : Math.floor((nextSubX + player.width) / TILE_SIZE);
         let checkY1 = Math.floor(player.subY / TILE_SIZE);
@@ -694,6 +722,7 @@ function update() {
         if (!collision) player.subX = nextSubX;
     }
 
+    // 以下、チェックポイント・アイテム・スタック判定等の既存ロジック
     let currentDepth = Math.floor(player.subY / TILE_SIZE / 2);
     [100, 200, 300, 400].forEach(meters => {
         if (currentDepth >= meters && !checkPointsTriggered[meters]) {
@@ -719,7 +748,7 @@ function update() {
     }
 
     let isStuck = false;
-    if (!player.isFalling && player.y < 998 && !onLadder) {
+    if (!player.isFalling && player.y < 998 && !isPlayerOnLadder()) {
         let currentY = Math.floor(player.subY / TILE_SIZE);
         let currentX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
         let floorY = currentY + 1;
@@ -951,7 +980,6 @@ function loop() {
 }
 
 function startGame() {
-    // ⚡ 多重ループ（加速バグ）を完全に防ぐために古いフレームを破棄
     if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
         animationFrameId = null;
