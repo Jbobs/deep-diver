@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Deep Drop - Escape & GiveUp Edition</title>
+    <title>Deep Drop - Fixed Ladder & Speed Edition</title>
     <style>
         * {
             box-sizing: border-box;
@@ -338,7 +338,7 @@
     <div id="screen-clear" class="overlay hidden">
         <h1 style="color:#ffd700; text-shadow: 0 0 15px #ffd700;">STAGE CLEAR!</h1>
         <div style="font-size: 50px; margin: 15px 0;">👑</div>
-        <p>500mの最深部に到達し、伝説の宝箱を開けた！</p>
+        <p>500mの最深部に到達し、伝説 of 宝箱を開けた！</p>
         <p style="color:#ffd700; font-size:16px; font-weight:bold; margin-bottom:15px;">クリアボーナスコイン: +100</p>
         <button id="clear-home-button">HOME TO TITLE</button>
     </div>
@@ -359,6 +359,7 @@ let ladders = [];
 let generatedMaxY = 0;      
 let truePathX = 10; 
 let checkPointsTriggered = {}; 
+let animationFrameId = null; // ⚡ 加速防止用のID保持変数
 
 const CHARACTERS = [
     { id: 'yellow', name: 'イエロー', color: '#fff700', req: 0, scale: 1.0 },
@@ -653,10 +654,18 @@ function update() {
         player.subY = 999 * TILE_SIZE;
     }
 
-    // ⚡ ハシゴのバウンド対策：ハシゴの上端かつ床に乗っている場合はハシゴ状態を抜けて着地させる
-    if (onLadder && !standOnFloor) {
+    // ⚡ 改良版ハシゴ挙動：ハシゴ内にいるときは確実に上に登らせ、上の床を完全に抜けたら着地させる
+    if (onLadder) {
         player.isFalling = false;
-        player.subY -= 3.0; 
+        let pCenterX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
+        let aboveY = Math.floor((player.subY + TILE_SIZE - 4) / TILE_SIZE);
+        
+        // ハシゴ最上部かつ次の上のマスに床がある場合だけ、完全にその上に着地
+        if (map[aboveY] && map[aboveY][pCenterX] === 1 && (player.subY % TILE_SIZE <= 2)) {
+            player.subY = aboveY * TILE_SIZE;
+        } else {
+            player.subY -= 3.5; // スムーズに上昇
+        }
     } else {
         if (!standOnFloor) {
             player.isFalling = true;
@@ -936,16 +945,24 @@ function resizeCanvas() {
 function loop() {
     update();
     draw();
-    if (gameState === 'PLAYING' || gameState === 'GAMEOVER') requestAnimationFrame(loop);
+    if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
+        animationFrameId = requestAnimationFrame(loop);
+    }
 }
 
 function startGame() {
+    // ⚡ 多重ループ（加速バグ）を完全に防ぐために古いフレームを破棄
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
+
     initMap();
     gameState = 'PLAYING';
     document.getElementById('screen-start').classList.add('hidden');
     document.getElementById('screen-gameover').classList.add('hidden');
     document.getElementById('screen-clear').classList.add('hidden');
-    requestAnimationFrame(loop);
+    loop(); 
 }
 
 function endGame() {
@@ -982,6 +999,10 @@ function clearGame() {
 }
 
 function returnToHome() {
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
     gameState = 'START';
     shopPurchasedPickaxes = 0; 
     shopPurchasedLadders = 1; 
