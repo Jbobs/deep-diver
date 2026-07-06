@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Deep Drop - Perfect Edition</title>
+    <title>Deep Drop - Ladder & Crush Edition</title>
     <style>
         * {
             box-sizing: border-box;
@@ -59,6 +59,7 @@
         }
         .ui-coin { color: #ffd700; border-color: #ffd700; }
         .ui-pickaxe { color: #00e5ff; border-color: #00e5ff; }
+        .ui-ladder { color: #ff9900; border-color: #ff9900; }
         .ui-light { color: #fff; background: #665500; border-color: #ffd700; display: none; }
 
         #canvas-wrapper {
@@ -80,7 +81,7 @@
             background: #161616;
             border-top: 2px solid #262626;
             padding: 12px 10px;
-            gap: 10px;
+            gap: 8px;
             z-index: 5;
         }
         .btn {
@@ -89,7 +90,7 @@
             justify-content: center;
             align-items: center;
             background: #262626;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             color: #ccc;
             border: 2px solid #363636;
@@ -103,28 +104,20 @@
             transform: translateY(2px);
             box-shadow: 0 2px #111;
         }
-        .btn-pickaxe {
-            flex: 1.2;
-            background: #1a3a40;
-            border-color: #00e5ff;
-            color: #00e5ff;
-            font-size: 15px;
+        .btn-action {
+            flex: 1.1;
+            font-size: 13px;
             flex-direction: column;
             gap: 2px;
+            text-align: center;
         }
-        .btn-pickaxe:active {
-            background: #00e5ff;
-            color: #111;
-        }
-        .btn-pickaxe.disabled {
-            opacity: 0.25;
-            border-color: #333;
-            color: #555;
-            background: #1a1a1a;
-            cursor: not-allowed;
-            box-shadow: none;
-            transform: none;
-        }
+        .btn-pickaxe { background: #1a3a40; border-color: #00e5ff; color: #00e5ff; }
+        .btn-pickaxe:active { background: #00e5ff; color: #111; }
+        .btn-pickaxe.disabled { opacity: 0.25; border-color: #333; color: #555; background: #1a1a1a; cursor: not-allowed; box-shadow: none; transform: none; }
+        
+        .btn-ladder { background: #402a1a; border-color: #ff9900; color: #ff9900; }
+        .btn-ladder:active { background: #ff9900; color: #111; }
+        .btn-ladder.disabled { opacity: 0.25; border-color: #333; color: #555; background: #1a1a1a; cursor: not-allowed; box-shadow: none; transform: none; }
 
         .overlay {
             position: absolute;
@@ -213,17 +206,18 @@
         .shop-box {
             width: 90%;
             background: #1c1c1c;
-            border: 1px solid #00e5ff;
+            border: 1px solid #ff9900;
             border-radius: 8px;
             padding: 10px;
             margin-bottom: 15px;
-            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
         .shop-title {
             font-size: 12px;
-            color: #00e5ff;
+            color: #ff9900;
             font-weight: bold;
-            margin-bottom: 5px;
             letter-spacing: 1px;
         }
         .shop-item-row {
@@ -234,16 +228,16 @@
             padding: 6px 12px;
             border-radius: 6px;
         }
-        .shop-item-info { font-size: 12px; font-weight: bold; color: #fff; text-align: left;}
+        .shop-item-info { font-size: 11px; font-weight: bold; color: #fff; text-align: left; line-height: 1.3;}
         .btn-buy {
-            background: #00e5ff !important;
+            background: #ffd700 !important;
             color: #111 !important;
             font-size: 11px !important;
             padding: 5px 12px !important;
-            box-shadow: 0 2px #00a0b5 !important;
+            box-shadow: 0 2px #b89b00 !important;
             border-radius: 4px !important;
         }
-        .btn-buy:active { transform: translateY(1px); box-shadow: 0 1px #00a0b5 !important;}
+        .btn-buy:active { transform: translateY(1px); box-shadow: 0 1px #b89b00 !important;}
         .btn-buy.disabled { opacity: 0.3; background: #444 !important; color: #888 !important; box-shadow: none !important; cursor: not-allowed; }
 
         #danger-indicator {
@@ -274,7 +268,8 @@
         </div>
         <div class="ui-row" style="margin-top: 2px;">
             <div class="ui-box ui-coin">COINS: <span id="ui-coins">0</span></div>
-            <div class="ui-box ui-pickaxe">⛏️ PICKAXE: <span id="ui-pickaxes">0</span></div>
+            <div class="ui-box ui-pickaxe">⛏️: <span id="ui-pickaxes">0</span></div>
+            <div class="ui-box ui-ladder">🪜: <span id="ui-ladders">0</span></div>
             <div class="ui-box ui-light" id="ui-light-box">🔦 LIGHT: <span id="ui-light-timer">0</span>s</div>
         </div>
     </div>
@@ -286,7 +281,8 @@
 
     <div id="controls">
         <div class="btn" id="btn-left">◀ LEFT</div>
-        <div class="btn btn-pickaxe disabled" id="btn-use-pickaxe">⛏️ BREAK<br><span style="font-size:10px;">[Space]</span></div>
+        <div class="btn btn-action btn-pickaxe disabled" id="btn-use-pickaxe">⛏️ BREAK<br><span style="font-size:9px;">[Space]</span></div>
+        <div class="btn btn-action btn-ladder disabled" id="btn-use-ladder">🪜 LADDER<br><span style="font-size:9px;">[Shift]</span></div>
         <div class="btn" id="btn-right">RIGHT ▶</div>
     </div>
 
@@ -294,22 +290,26 @@
     <div id="screen-start" class="overlay">
         <div id="crown-badge" class="hidden">👑<span id="crown-count">0</span></div>
         <h1>DEEP DROP</h1>
-        <p>正解ルートを見極め、500mの最深部を目指せ！<br>100m毎に足元の床へ「つるはし宝箱」が飛び出すぞ！</p>
+        <p>正解ルートを見極め、500mの最深部を目指せ！<br>ハシゴ(🪜)を使えば2マス分上に登って脱出できるぞ！</p>
         
         <div class="char-selector-title">EXPLORER SELECT</div>
         <div class="char-scroll-box" id="char-container"></div>
 
         <!-- ショップ要素 -->
         <div class="shop-box">
-            <div class="shop-title">⛏️ COIN SHOP ⛏️</div>
+            <div class="shop-title">🛒 COIN SHOP 🛒</div>
             <div class="shop-item-row">
                 <div class="shop-item-info">つるはし ×1<br><span style="font-size:10px; color:#ffd700;">価格: 15 COINS</span></div>
                 <button class="btn-buy" id="shop-buy-pickaxe">BUY</button>
             </div>
+            <div class="shop-item-row">
+                <div class="shop-item-info">ハシゴ ×1 (最大1)<br><span style="font-size:10px; color:#ffd700;">価格: 30 COINS</span></div>
+                <button class="btn-buy" id="shop-buy-ladder">BUY</button>
+            </div>
         </div>
 
         <button id="start-button">START GAME</button>
-        <div style="font-size: 10px; color:#666; margin-top:6px;">[PCの方はEnterキーでもスタート可能]</div>
+        <div style="font-size: 10px; color:#666; margin-top:6px;">[PC: Enterでスタート / 空間破壊: Space / ハシゴ: Shift]</div>
     </div>
 
     <!-- ゲームオーバー画面 -->
@@ -344,6 +344,7 @@ const BASE_WIDTH = COLS * TILE_SIZE;
 
 let map = [];                
 let items = []; 
+let ladders = []; // 設置されたハシゴの座標オブジェクトリスト {x, y}
 let generatedMaxY = 0;      
 let truePathX = 10; 
 let checkPointsTriggered = {}; 
@@ -364,6 +365,7 @@ let highScore = parseInt(localStorage.getItem('deepDrop_high_v11')) || 0;
 let totalCoins = parseInt(localStorage.getItem('deepDrop_coins_v11')) || 0;
 let sessionCoins = 0;
 let shopPurchasedPickaxes = 0; 
+let shopPurchasedLadders = 1; // デフォルトで1個持てる
 
 let player = {
     x: 10, y: 2,            
@@ -374,7 +376,8 @@ let player = {
     stuckTimer: 0,          
     maxDepth: 0,
     flashlightTimer: 0,
-    pickaxes: 0
+    pickaxes: 0,
+    ladders: 1
 };
 
 document.getElementById('ui-high').innerText = highScore;
@@ -392,6 +395,7 @@ const BIOMES = [
 function initMap() {
     map = [];
     items = [];
+    ladders = [];
     generatedMaxY = 0;
     sessionCoins = 0;
     player.maxDepth = 0;
@@ -399,6 +403,8 @@ function initMap() {
     player.flashlightTimer = 0;
     
     player.pickaxes = shopPurchasedPickaxes;
+    player.ladders = shopPurchasedLadders; 
+    
     checkPointsTriggered = { 100: false, 200: false, 300: false, 400: false };
     truePathX = 10; 
     
@@ -414,6 +420,7 @@ function initMap() {
     player.subY = player.y * TILE_SIZE;
 
     updatePickaxeUI();
+    updateLadderUI();
     updateShopUI();
     document.getElementById('ui-light-box').style.display = 'none';
     renderCharacterSelector();
@@ -481,20 +488,39 @@ function updatePickaxeUI() {
     else btn.classList.add('disabled');
 }
 
+function updateLadderUI() {
+    document.getElementById('ui-ladders').innerText = player.ladders;
+    const btn = document.getElementById('btn-use-ladder');
+    if (player.ladders > 0) btn.classList.remove('disabled');
+    else btn.classList.add('disabled');
+}
+
 function updateShopUI() {
-    const buyBtn = document.getElementById('shop-buy-pickaxe');
     document.getElementById('ui-coins').innerText = totalCoins;
-    if (totalCoins >= 15) {
-        buyBtn.classList.remove('disabled');
-    } else {
-        buyBtn.classList.add('disabled');
-    }
+    
+    const buyPickaxeBtn = document.getElementById('shop-buy-pickaxe');
+    if (totalCoins >= 15) buyPickaxeBtn.classList.remove('disabled');
+    else buyPickaxeBtn.classList.add('disabled');
+
+    const buyLadderBtn = document.getElementById('shop-buy-ladder');
+    // ハシゴは1つのみ保持可能
+    if (totalCoins >= 30 && shopPurchasedLadders < 1) buyLadderBtn.classList.remove('disabled');
+    else buyLadderBtn.classList.add('disabled');
 }
 
 function buyPickaxe() {
     if (totalCoins >= 15) {
         totalCoins -= 15;
         shopPurchasedPickaxes++;
+        localStorage.setItem('deepDrop_coins_v11', totalCoins);
+        updateShopUI();
+    }
+}
+
+function buyLadder() {
+    if (totalCoins >= 30 && shopPurchasedLadders < 1) {
+        totalCoins -= 30;
+        shopPurchasedLadders = 1;
         localStorage.setItem('deepDrop_coins_v11', totalCoins);
         updateShopUI();
     }
@@ -513,6 +539,30 @@ function usePickaxe() {
         player.stuckTimer = 0; 
         document.getElementById('danger-indicator').classList.add('hidden');
     }
+}
+
+function useLadder() {
+    if (gameState !== 'PLAYING' || player.ladders <= 0) return;
+
+    let pX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
+    let pY = Math.floor((player.subY + TILE_SIZE - 2) / TILE_SIZE);
+
+    // 足元から上に向かって2マス、ハシゴを設置（壁があってもハシゴが通れるように壁を自動破壊）
+    for (let i = 0; i < 2; i++) {
+        let targetY = pY - i;
+        if (targetY >= 0) {
+            if (map[targetY]) map[targetY][pX] = 0; // 通れるように壁をくり抜く
+            // 重複を避けてハシゴ登録
+            if (!ladders.some(l => l.x === pX && l.y === targetY)) {
+                ladders.push({ x: pX, y: targetY });
+            }
+        }
+    }
+    
+    player.ladders--;
+    updateLadderUI();
+    player.stuckTimer = 0;
+    document.getElementById('danger-indicator').classList.add('hidden');
 }
 
 function getBiomeColor(y) {
@@ -541,15 +591,12 @@ function spawnPickaxeChestAtPlayer(meters) {
     let targetX = currentX + 1;
     if (targetX >= COLS - 1) targetX = currentX - 1;
     
-    // 空中に固定されないよう、指定Xマスのプレイヤー位置から「一番近い真下の床」を探索
     let targetY = currentY;
     while (targetY < generatedMaxY) {
-        // 下のマスが壁、またはその場がしっかり立てる床であるかをチェック
         if (map[targetY + 1] && map[targetY + 1][targetX] === 1) {
-            break; // 固い地面を見つけたらその上が着地ポイント
+            break; 
         }
         targetY++;
-        // 念のため無限落下防止
         if (targetY > currentY + 15) {
             targetY = currentY; 
             break;
@@ -560,6 +607,14 @@ function spawnPickaxeChestAtPlayer(meters) {
     items.push({ x: targetX, y: targetY, type: 'pickaxeBox', active: true, popAnim: 1.0 });
 }
 
+function isPlayerOnLadder() {
+    let pX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
+    let pY = Math.floor((player.subY + TILE_SIZE / 2) / TILE_SIZE);
+    let pBottomY = Math.floor((player.subY + TILE_SIZE - 1) / TILE_SIZE);
+    
+    return ladders.some(l => l.x === pX && (l.y === pY || l.y === pBottomY));
+}
+
 function update() {
     if (gameState !== 'PLAYING') return;
 
@@ -568,7 +623,6 @@ function update() {
 
     if (player.y + VIEW_ROWS > generatedMaxY) extendMap(generatedMaxY + 50);
 
-    // タイマーUIの表示管理
     if (player.flashlightTimer > 0) {
         player.flashlightTimer--;
         document.getElementById('ui-light-box').style.display = 'block';
@@ -576,6 +630,8 @@ function update() {
     } else {
         document.getElementById('ui-light-box').style.display = 'none';
     }
+
+    let onLadder = isPlayerOnLadder();
 
     let nextGridY = Math.floor((player.subY + TILE_SIZE) / TILE_SIZE);
     let standOnFloor = false;
@@ -590,12 +646,19 @@ function update() {
         player.subY = 999 * TILE_SIZE;
     }
 
-    if (!standOnFloor) {
-        player.isFalling = true;
-        player.subY += 9.0; // ⚡ 落下速度を本来の快適なスピードに復旧
-    } else {
+    // ハシゴに乗っているときは重力を無視して登れる仕様に
+    if (onLadder) {
         player.isFalling = false;
-        player.subY = Math.floor(player.subY / TILE_SIZE) * TILE_SIZE; 
+        // ハシゴ内では自動・またはキー押しでスルスルと上に移動
+        player.subY -= 3.0; 
+    } else {
+        if (!standOnFloor) {
+            player.isFalling = true;
+            player.subY += 9.0; 
+        } else {
+            player.isFalling = false;
+            player.subY = Math.floor(player.subY / TILE_SIZE) * TILE_SIZE; 
+        }
     }
 
     let moveDir = 0;
@@ -628,7 +691,7 @@ function update() {
         if (item.popAnim < 0) item.popAnim = 0;
 
         if (item.active && item.y === player.y && item.x === player.x) {
-            if (item.type === 'flashlight') { item.active = false; player.flashlightTimer = 450; } // 約7.5秒
+            if (item.type === 'flashlight') { item.active = false; player.flashlightTimer = 450; } 
             else if (item.type === 'coin') { item.active = false; sessionCoins += 1; }
             else if (item.type === 'pickaxeBox') { item.active = false; player.pickaxes++; updatePickaxeUI(); }
             else if (item.type === 'chest') { item.active = false; clearGame(); }
@@ -641,7 +704,7 @@ function update() {
     }
 
     let isStuck = false;
-    if (!player.isFalling && player.y < 998) {
+    if (!player.isFalling && player.y < 998 && !onLadder) {
         let currentY = Math.floor(player.subY / TILE_SIZE);
         let currentX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
         let floorY = currentY + 1;
@@ -662,7 +725,7 @@ function update() {
 
     if (isStuck) {
         document.getElementById('danger-indicator').classList.remove('hidden');
-        if (player.pickaxes > 0) {
+        if (player.pickaxes > 0 || player.ladders > 0) {
             player.stuckTimer = 0; 
         } else {
             player.stuckTimer++;
@@ -687,6 +750,7 @@ function draw() {
     let startRow = Math.floor(cameraY / TILE_SIZE);
     let endRow = startRow + VIEW_ROWS + 2;
 
+    // マップ背景＆タイルの描画
     for (let y = startRow; y < endRow; y++) {
         if (!map[y]) continue;
         let baseColor = getBiomeColor(y);
@@ -711,6 +775,29 @@ function draw() {
         }
     }
 
+    // 🪜 ハシゴの描画
+    ladders.forEach(ladder => {
+        if (ladder.y >= startRow && ladder.y < endRow) {
+            let lx = ladder.x * TILE_SIZE;
+            let ly = ladder.y * TILE_SIZE;
+            ctx.strokeStyle = "#ff9900";
+            ctx.lineWidth = 3;
+            // 縦の2本柱
+            ctx.beginPath();
+            ctx.moveTo(lx + 4, ly); ctx.lineTo(lx + 4, ly + TILE_SIZE);
+            ctx.moveTo(lx + TILE_SIZE - 4, ly); ctx.lineTo(lx + TILE_SIZE - 4, ly + TILE_SIZE);
+            ctx.stroke();
+            // 横のステップ
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(lx + 4, ly + 6); ctx.lineTo(lx + TILE_SIZE - 4, ly + 6);
+            ctx.moveTo(lx + 4, ly + 12); ctx.lineTo(lx + TILE_SIZE - 4, ly + 12);
+            ctx.moveTo(lx + 4, ly + 18); ctx.lineTo(lx + TILE_SIZE - 4, ly + 18);
+            ctx.stroke();
+        }
+    });
+
+    // アイテムの描画
     items.forEach(item => {
         if (item.active && item.y >= startRow && item.y < endRow) {
             let ix = item.x * TILE_SIZE + TILE_SIZE / 2;
@@ -719,12 +806,11 @@ function draw() {
             let drawY = iy + offsetY;
 
             if (item.type === 'flashlight') {
-                // 🔦 レトロなドット絵風ライトデザイン
-                ctx.fillStyle = '#ffcc00'; // 黄色の本体
+                ctx.fillStyle = '#ffcc00'; 
                 ctx.fillRect(ix - 3, drawY - 6, 6, 12);
-                ctx.fillStyle = '#ffffff'; // 白いレンズ
+                ctx.fillStyle = '#ffffff'; 
                 ctx.fillRect(ix - 5, drawY - 8, 10, 3);
-                ctx.fillStyle = '#333333'; // 黒いグリップ
+                ctx.fillStyle = '#333333'; 
                 ctx.fillRect(ix - 2, drawY + 1, 4, 4);
             } 
             else if (item.type === 'coin') {
@@ -742,7 +828,7 @@ function draw() {
         }
     });
 
-    // カービィ風キャラ描画
+    // キャラクター描画
     let activeChar = CHARACTERS.find(c => c.id === activeCharId) || CHARACTERS[0];
     let charColor = activeChar.color;
     if (activeChar.id === 'rainbow') charColor = `hsl(${(Date.now() / 15) % 360}, 100%, 65%)`;
@@ -752,7 +838,14 @@ function draw() {
     
     let radX = TILE_SIZE / 2 - 2;
     let radY = TILE_SIZE / 2 - 2;
-    if (player.isFalling) {
+
+    // 💥 状態に合わせた形状補正（ゲームオーバー時はペシャンコ）
+    if (gameState === 'GAMEOVER') {
+        radX += 5;   // 横に潰れて広がる
+        radY -= 6;   // 縦にペシャンコ
+        if (radY < 2) radY = 2;
+        charY += 5;  // 地面に密着させるためのオフセット
+    } else if (player.isFalling) {
         radX -= 1.5; 
         radY += 2;
     } else if (keys['ArrowLeft'] || keys['ArrowRight'] || keys['a'] || keys['d'] || mobileLeftPressed || mobileRightPressed) {
@@ -765,14 +858,16 @@ function draw() {
     ctx.fillStyle = charColor;
     ctx.shadowBlur = 12; ctx.shadowColor = charColor;
 
-    // 耳（ツノ）
-    ctx.beginPath();
-    ctx.moveTo(charX - radX + 2, charY - radY + 2);
-    ctx.lineTo(charX - radX / 2, charY - radY - 4); 
-    ctx.lineTo(charX, charY - radY + 2);
-    ctx.lineTo(charX + radX / 2, charY - radY - 4); 
-    ctx.lineTo(charX + radX - 2, charY - radY + 2);
-    ctx.fill();
+    // 耳（ツノ）- 生存時のみ描画
+    if (gameState !== 'GAMEOVER') {
+        ctx.beginPath();
+        ctx.moveTo(charX - radX + 2, charY - radY + 2);
+        ctx.lineTo(charX - radX / 2, charY - radY - 4); 
+        ctx.lineTo(charX, charY - radY + 2);
+        ctx.lineTo(charX + radX / 2, charY - radY - 4); 
+        ctx.lineTo(charX + radX - 2, charY - radY + 2);
+        ctx.fill();
+    }
 
     // 身体
     ctx.beginPath();
@@ -780,10 +875,19 @@ function draw() {
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // おめめ
-    ctx.fillStyle = "#111111";
-    ctx.fillRect(charX - 3, charY - 2, 2, 4); 
-    ctx.fillRect(charX + 1, charY - 2, 2, 4);
+    // おめめ (ゲームオーバー時は× ×にする)
+    if (gameState === 'GAMEOVER') {
+        ctx.strokeStyle = "#111111";
+        ctx.lineWidth = 2;
+        // 左の目 (X)
+        ctx.beginPath(); ctx.moveTo(charX - 5, charY - 2); ctx.lineTo(charX - 1, charY + 2); ctx.moveTo(charX - 1, charY - 2); ctx.lineTo(charX - 5, charY + 2); ctx.stroke();
+        // 右の目 (X)
+        ctx.beginPath(); ctx.moveTo(charX + 1, charY - 2); ctx.lineTo(charX + 5, charY + 2); ctx.moveTo(charX + 5, charY - 2); ctx.lineTo(charX + 1, charY + 2); ctx.stroke();
+    } else {
+        ctx.fillStyle = "#111111";
+        ctx.fillRect(charX - 3, charY - 2, 2, 4); 
+        ctx.fillRect(charX + 1, charY - 2, 2, 4);
+    }
 
     ctx.restore();
     ctx.restore();
@@ -839,7 +943,7 @@ function resizeCanvas() {
 function loop() {
     update();
     draw();
-    if (gameState === 'PLAYING') requestAnimationFrame(loop);
+    if (gameState === 'PLAYING' || gameState === 'GAMEOVER') requestAnimationFrame(loop);
 }
 
 function startGame() {
@@ -858,13 +962,19 @@ function endGame() {
     
     totalCoins += sessionCoins;
     shopPurchasedPickaxes = 0; 
+    shopPurchasedLadders = 1; // リトライ時はデフォルト1個に戻る
     localStorage.setItem('deepDrop_coins_v11', totalCoins);
     
     if (player.maxDepth > highScore) {
         highScore = player.maxDepth;
         localStorage.setItem('deepDrop_high_v11', highScore);
     }
-    document.getElementById('screen-gameover').classList.remove('hidden');
+    
+    // ペシャンコ描画を一瞬挟んでからオーバーレイUIを出す
+    draw();
+    setTimeout(() => {
+        document.getElementById('screen-gameover').classList.remove('hidden');
+    }, 400);
 }
 
 function clearGame() {
@@ -872,6 +982,7 @@ function clearGame() {
     clearCount++;
     totalCoins += 100; 
     shopPurchasedPickaxes = 0;
+    shopPurchasedLadders = 1;
     localStorage.setItem('deepDrop_clears_v11', clearCount);
     localStorage.setItem('deepDrop_coins_v11', totalCoins);
     document.getElementById('screen-clear').classList.remove('hidden');
@@ -880,6 +991,7 @@ function clearGame() {
 function returnToHome() {
     gameState = 'START';
     shopPurchasedPickaxes = 0; 
+    shopPurchasedLadders = 1; 
     document.getElementById('screen-gameover').classList.add('hidden');
     document.getElementById('screen-clear').classList.add('hidden');
     document.getElementById('screen-start').classList.remove('hidden');
@@ -902,6 +1014,10 @@ window.addEventListener('keydown', e => {
         e.preventDefault();
         usePickaxe();
     }
+    if (e.key === 'Shift') {
+        e.preventDefault();
+        useLadder();
+    }
 });
 window.addEventListener('keyup', e => keys[e.key] = false);
 
@@ -914,7 +1030,9 @@ document.getElementById('btn-right').addEventListener('touchstart', (e) => { e.p
 document.getElementById('btn-right').addEventListener('touchend', () => mobileRightPressed = false);
 
 document.getElementById('btn-use-pickaxe').addEventListener('click', usePickaxe);
+document.getElementById('btn-use-ladder').addEventListener('click', useLadder);
 document.getElementById('shop-buy-pickaxe').addEventListener('click', buyPickaxe);
+document.getElementById('shop-buy-ladder').addEventListener('click', buyLadder);
 document.getElementById('start-button').addEventListener('click', startGame);
 document.getElementById('restart-button').addEventListener('click', startGame);
 document.getElementById('home-button').addEventListener('click', returnToHome);
