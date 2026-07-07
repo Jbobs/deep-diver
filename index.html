@@ -189,6 +189,8 @@
         .btn-bomb:active { background: #ff4444; color: #111; }
         .btn-sidebreak { border-color: #ffaa00; color: #ffaa00; }
         .btn-sidebreak:active { background: #ffaa00; color: #111; }
+        .btn-down { border-color: #66ccff; color: #66ccff; }
+        .btn-down:active { background: #66ccff; color: #111; }
 
         .overlay {
             position: absolute;
@@ -366,6 +368,7 @@
     </div>
 
     <div id="ability-bar">
+        <div class="btn-ability btn-down" id="btn-down" style="display:flex;">⬇ DOWN</div>
         <div class="btn-ability btn-jump" id="btn-jump"></div>
         <div class="btn-ability btn-bomb" id="btn-bomb"></div>
         <div class="btn-ability btn-sidebreak" id="btn-sidebreak"></div>
@@ -389,11 +392,11 @@
         <div class="shop-box">
             <div class="shop-title">🛒 COIN SHOP 🛒</div>
             <div class="shop-item-row">
-                <div class="shop-item-info">つるはし ×1<br><span style="font-size:10px; color:#ffd700;">価格: 15 COINS</span></div>
+                <div class="shop-item-info">つるはし ×1<br><span style="font-size:10px; color:#ffd700;">価格: 15 COINS</span><br><span style="font-size:9px; color:#aaa;">所持: <span id="ui-owned-pickaxes">0</span>本（未使用分は次回に持ち越し）</span></div>
                 <button class="btn-buy" id="shop-buy-pickaxe">BUY</button>
             </div>
             <div class="shop-item-row">
-                <div class="shop-item-info">ハシゴ ×1 (最大1)<br><span style="font-size:10px; color:#ffd700;">価格: 30 COINS</span></div>
+                <div class="shop-item-info">ハシゴ ×1 (最大2所持)<br><span style="font-size:10px; color:#ffd700;">価格: 30 COINS</span><br><span style="font-size:9px; color:#aaa;">所持: <span id="ui-owned-ladders">1</span>本（未使用分は次回に持ち越し）</span></div>
                 <button class="btn-buy" id="shop-buy-ladder">BUY</button>
             </div>
         </div>
@@ -473,8 +476,10 @@ let clearCount = parseInt(localStorage.getItem('deepDrop_clears_v11')) || 0;
 let highScore = parseInt(localStorage.getItem('deepDrop_high_v11')) || 0;
 let totalCoins = parseInt(localStorage.getItem('deepDrop_coins_v11')) || 0;
 let sessionCoins = 0;
-let shopPurchasedPickaxes = 0; 
-let shopPurchasedLadders = 1; 
+// つるはし/ハシゴは「所持品」として永続化。使わなかった分は次回に持ち越される
+let ownedPickaxes = parseInt(localStorage.getItem('deepDrop_ownedPickaxes_v11')) || 0;
+let ownedLadders = parseInt(localStorage.getItem('deepDrop_ownedLadders_v11'));
+if (isNaN(ownedLadders)) ownedLadders = 1; // 初回は無料のハシゴを1本持った状態から
 
 let player = {
     x: 10, y: 2,            
@@ -495,7 +500,9 @@ let player = {
     sideBreaks: 0,
     explosionTimer: 0,
     explosionX: 0,
-    explosionY: 0
+    explosionY: 0,
+    groundedPrev: true,
+    iceVX: 0
 };
 
 document.getElementById('ui-high').innerText = highScore;
@@ -520,13 +527,15 @@ function initMap() {
     player.stuckTimer = 0;
     player.flashlightTimer = 0;
     
-    player.pickaxes = shopPurchasedPickaxes;
-    player.ladders = shopPurchasedLadders; 
+    player.pickaxes = ownedPickaxes;
+    player.ladders = ownedLadders; 
 
     const activeChar = CHARACTERS.find(c => c.id === activeCharId) || CHARACTERS[0];
     player.facingDir = 1;
     player.jumpFramesLeft = 0;
     player.explosionTimer = 0;
+    player.iceVX = 0;
+    player.groundedPrev = true;
     player.jumpsLeft = activeChar.jumpsMax;
     player.bombs = activeChar.bombsMax;
     player.sideBreaks = activeChar.sideBreaksMax;
@@ -620,30 +629,34 @@ function updateLadderUI() {
 
 function updateShopUI() {
     document.getElementById('ui-coins').innerText = totalCoins;
-    
+    document.getElementById('ui-owned-pickaxes').innerText = ownedPickaxes;
+    document.getElementById('ui-owned-ladders').innerText = ownedLadders;
+
     const buyPickaxeBtn = document.getElementById('shop-buy-pickaxe');
     if (totalCoins >= 15) buyPickaxeBtn.classList.remove('disabled');
     else buyPickaxeBtn.classList.add('disabled');
 
     const buyLadderBtn = document.getElementById('shop-buy-ladder');
-    if (totalCoins >= 30 && shopPurchasedLadders < 1) buyLadderBtn.classList.remove('disabled');
+    if (totalCoins >= 30 && ownedLadders < 2) buyLadderBtn.classList.remove('disabled');
     else buyLadderBtn.classList.add('disabled');
 }
 
 function buyPickaxe() {
     if (totalCoins >= 15) {
         totalCoins -= 15;
-        shopPurchasedPickaxes++;
+        ownedPickaxes++;
         localStorage.setItem('deepDrop_coins_v11', totalCoins);
+        localStorage.setItem('deepDrop_ownedPickaxes_v11', ownedPickaxes);
         updateShopUI();
     }
 }
 
 function buyLadder() {
-    if (totalCoins >= 30 && shopPurchasedLadders < 1) {
+    if (totalCoins >= 30 && ownedLadders < 2) {
         totalCoins -= 30;
-        shopPurchasedLadders = 1;
+        ownedLadders++;
         localStorage.setItem('deepDrop_coins_v11', totalCoins);
+        localStorage.setItem('deepDrop_ownedLadders_v11', ownedLadders);
         updateShopUI();
     }
 }
@@ -669,7 +682,7 @@ function useLadder() {
     let pX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
     let pY = Math.floor((player.subY + TILE_SIZE - 2) / TILE_SIZE);
 
-    for (let i = 0; i < 2; i++) {
+    for (let i = 1; i <= 2; i++) {
         let targetY = pY - i;
         if (targetY >= 0) {
             if (map[targetY]) map[targetY][pX] = 0; 
@@ -687,6 +700,12 @@ function useLadder() {
 
 function jump() {
     if (gameState !== 'PLAYING' || player.jumpsLeft <= 0) return;
+
+    // 頭上が塞がっている場合はそもそもジャンプできない（無駄打ちさせない）
+    let pCenterXJ = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
+    let aboveGridY = Math.floor((player.subY - 1) / TILE_SIZE);
+    if (map[aboveGridY] && map[aboveGridY][pCenterXJ] === 1) return;
+
     player.jumpsLeft--;
     player.jumpFramesLeft = JUMP_DURATION;
     updateAbilityUI();
@@ -760,6 +779,19 @@ function updateAbilityUI() {
     } else {
         sideBtn.style.display = 'none';
     }
+}
+
+function tileHash(x, y) {
+    let h = (x * 374761393 + y * 668265263) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h = (h ^ (h >>> 16)) >>> 0;
+    return h;
+}
+
+function getBiomeIndex(y) {
+    let depthMeters = Math.floor(y / 2);
+    let interval = 125;
+    return Math.min(Math.floor(depthMeters / interval), BIOMES.length - 1);
 }
 
 function getBiomeColor(y) {
@@ -861,14 +893,23 @@ function update() {
     let standOnFloor = false;
     let pLeftX = Math.floor(player.subX / TILE_SIZE);
     let pRightX = Math.floor((player.subX + player.width) / TILE_SIZE);
-    
+
     if ((map[nextGridY] && map[nextGridY][pLeftX] === 1) || (map[nextGridY] && map[nextGridY][pRightX] === 1)) {
         standOnFloor = true;
     }
 
+    // ジャンプ回数の補充は「着地した瞬間」だけに行う（接地中ずっと補充し続けると
+    // 天井に頭をぶつけて即キャンセルされた際に無限にジャンプできてしまうため）
+    let isGroundedNow = onLadder || (player.jumpFramesLeft <= 0 && standOnFloor);
+    if (isGroundedNow && !player.groundedPrev) {
+        player.jumpsLeft = activeChar.jumpsMax;
+    }
+    player.groundedPrev = isGroundedNow;
+
+    let wantsDown = keys['ArrowDown'] || keys['s'] || keys['S'] || mobileDownPressed;
+
     if (onLadder) {
         player.isFalling = false;
-        player.jumpsLeft = activeChar.jumpsMax;
         let pCenterX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
         let currentFootY = Math.floor((player.subY + TILE_SIZE - 1) / TILE_SIZE);
         let aboveY = currentFootY - 1;
@@ -876,7 +917,11 @@ function update() {
         let hasLadderAbove = ladders.some(l => l.x === pCenterX && l.y === aboveY);
         let hasBlockAbove = map[aboveY] && map[aboveY][pCenterX] === 1;
 
-        if (!hasLadderAbove) {
+        if (wantsDown) {
+            // 詰んだ時に自分の意思で梯子を降りられるように（降りた先で詰み続ける場合は
+            // そのままスタックタイマーで力尽きることもできる＝ギブアップ以外の選択肢）
+            player.subY += 2.5;
+        } else if (!hasLadderAbove) {
             let targetTopY = (aboveY + 1) * TILE_SIZE; 
             if (hasBlockAbove) {
                 if (player.subY <= targetTopY) {
@@ -918,22 +963,51 @@ function update() {
         } else {
             player.isFalling = false;
             player.subY = Math.floor(player.subY / TILE_SIZE) * TILE_SIZE; 
-            player.jumpsLeft = activeChar.jumpsMax;
         }
     }
 
-    if (moveDir !== 0) {
-        let currentSpeed = (player.isFalling && !wantToLeaveLadder) ? player.speed * 0.35 : player.speed;
-        let nextSubX = player.subX + moveDir * currentSpeed;
 
-        if (player.isFalling && !wantToLeaveLadder && !activeChar.fallFree) {
-            let minX = player.fallStartX - TILE_SIZE;
-            let maxX = player.fallStartX + TILE_SIZE;
-            if (nextSubX < minX) nextSubX = minX;
-            if (nextSubX > maxX) nextSubX = maxX;
+    let biomeIndex = getBiomeIndex(player.y);
+    let baseSpeed = player.speed;
+    if (biomeIndex === 2) baseSpeed *= 0.55; // マグマ洞：足が重く動きが遅くなる
+
+    let onIce = (biomeIndex === 1) && standOnFloor && !player.isFalling && player.jumpFramesLeft <= 0 && !onLadder;
+    if (onIce) {
+        if (moveDir !== 0) {
+            player.iceVX = moveDir * baseSpeed * 1.15;
+        } else {
+            player.iceVX *= 0.93;
+            if (Math.abs(player.iceVX) < 0.05) player.iceVX = 0;
+        }
+    } else {
+        player.iceVX = 0;
+    }
+
+    let moveAmount = 0;
+    if (moveDir !== 0) {
+        moveAmount = moveDir * baseSpeed;
+    } else if (onIce && player.iceVX !== 0) {
+        moveAmount = player.iceVX; // 氷穴：キーを離しても滑って進む
+    }
+
+    if (moveAmount !== 0) {
+        let nextSubX;
+        if (moveDir !== 0) {
+            let scaledSpeed = (player.isFalling && !wantToLeaveLadder) ? baseSpeed * 0.35 : baseSpeed;
+            nextSubX = player.subX + moveDir * scaledSpeed;
+
+            if (player.isFalling && !wantToLeaveLadder && !activeChar.fallFree) {
+                let minX = player.fallStartX - TILE_SIZE;
+                let maxX = player.fallStartX + TILE_SIZE;
+                if (nextSubX < minX) nextSubX = minX;
+                if (nextSubX > maxX) nextSubX = maxX;
+            }
+        } else {
+            nextSubX = player.subX + moveAmount;
         }
 
-        let checkX = moveDir === -1 ? Math.floor(nextSubX / TILE_SIZE) : Math.floor((nextSubX + player.width) / TILE_SIZE);
+        let moveDirForCheck = nextSubX >= player.subX ? 1 : -1;
+        let checkX = moveDirForCheck === -1 ? Math.floor(nextSubX / TILE_SIZE) : Math.floor((nextSubX + player.width) / TILE_SIZE);
         let checkY1 = Math.floor(player.subY / TILE_SIZE);
         let checkY2 = Math.floor((player.subY + TILE_SIZE - 1) / TILE_SIZE);
         
@@ -942,6 +1016,7 @@ function update() {
         else if ((map[checkY1] && map[checkY1][checkX] === 1) || (map[checkY2] && map[checkY2][checkX] === 1)) collision = true;
 
         if (!collision) player.subX = nextSubX;
+        else if (onIce) player.iceVX = 0; // 滑ってる途中で壁にぶつかったら止まる
     }
 
     let currentDepth = Math.floor(player.subY / TILE_SIZE / 2);
@@ -1030,6 +1105,7 @@ function draw() {
     for (let y = startRow; y < endRow; y++) {
         if (!map[y]) continue;
         let baseColor = getBiomeColor(y);
+        let biomeIdx = getBiomeIndex(y);
         let rH = Math.min(255, Math.round(baseColor.r * 1.3));
         let gH = Math.min(255, Math.round(baseColor.g * 1.3));
         let bH = Math.min(255, Math.round(baseColor.b * 1.3));
@@ -1037,6 +1113,7 @@ function draw() {
         for (let x = 0; x < COLS; x++) {
             let tx = x * TILE_SIZE;
             let ty = y * TILE_SIZE;
+            let h = tileHash(x, y);
 
             if (map[y][x] === 1) {
                 ctx.fillStyle = `rgb(${baseColor.r}, ${baseColor.g}, ${baseColor.b})`;
@@ -1044,9 +1121,60 @@ function draw() {
                 ctx.fillStyle = `rgb(${rH}, ${gH}, ${bH})`;
                 ctx.fillRect(tx, ty, TILE_SIZE, 2); 
                 ctx.fillRect(tx, ty, 2, TILE_SIZE); 
+
+                if (biomeIdx === 2) {
+                    // マグマ洞：脈打つ溶岩の筋
+                    if (h % 5 === 0) {
+                        let pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.002 + x * 3 + y);
+                        ctx.fillStyle = `rgba(255, ${120 + Math.round(80 * pulse)}, 30, ${0.3 + 0.35 * pulse})`;
+                        ctx.fillRect(tx + (h % 10), ty + 5 + (h % 6), TILE_SIZE * 0.4, 3);
+                    }
+                } else if (biomeIdx === 1) {
+                    // 深層氷穴：結晶のきらめき
+                    if (h % 4 === 0) {
+                        ctx.fillStyle = `rgba(220, 250, 255, ${0.2 + 0.2 * ((h % 10) / 10)})`;
+                        ctx.beginPath();
+                        ctx.moveTo(tx + TILE_SIZE * 0.5, ty + 3);
+                        ctx.lineTo(tx + TILE_SIZE * 0.78, ty + TILE_SIZE * 0.5);
+                        ctx.lineTo(tx + TILE_SIZE * 0.5, ty + TILE_SIZE - 3);
+                        ctx.lineTo(tx + TILE_SIZE * 0.22, ty + TILE_SIZE * 0.5);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                } else if (biomeIdx === 3) {
+                    // 古代の奈落：不気味な紋様
+                    if (h % 6 === 0) {
+                        ctx.fillStyle = `rgba(180, 100, 255, 0.28)`;
+                        ctx.fillRect(tx + 3 + (h % 6), ty + 3 + ((h >> 3) % 6), 3, 3);
+                    }
+                } else {
+                    // 上層洞窟：岩のひび割れ
+                    if (h % 5 === 1) {
+                        ctx.strokeStyle = `rgba(0,0,0,0.25)`;
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(tx + 4, ty + (h % TILE_SIZE));
+                        ctx.lineTo(tx + TILE_SIZE - 4, ty + ((h >> 2) % TILE_SIZE));
+                        ctx.stroke();
+                    }
+                }
             } else {
                 ctx.fillStyle = `rgb(${Math.round(baseColor.r * 0.25)}, ${Math.round(baseColor.g * 0.25)}, ${Math.round(baseColor.b * 0.25)})`;
                 ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
+
+                if (biomeIdx === 2 && h % 9 === 0) {
+                    // マグマ洞：奥から漂う熱気
+                    ctx.fillStyle = `rgba(255,100,40,0.12)`;
+                    ctx.beginPath(); ctx.arc(tx + TILE_SIZE / 2, ty + TILE_SIZE / 2, TILE_SIZE * 0.5, 0, Math.PI * 2); ctx.fill();
+                } else if (biomeIdx === 1 && h % 8 === 0) {
+                    // 氷穴：舞う粉雪
+                    ctx.fillStyle = `rgba(255,255,255,0.4)`;
+                    ctx.beginPath(); ctx.arc(tx + (h % TILE_SIZE), ty + ((h >> 4) % TILE_SIZE), 1.2, 0, Math.PI * 2); ctx.fill();
+                } else if (biomeIdx === 3 && h % 11 === 0) {
+                    // 古代の奈落：浮遊する光の粒
+                    ctx.fillStyle = `rgba(200,180,255,0.3)`;
+                    ctx.beginPath(); ctx.arc(tx + (h % TILE_SIZE), ty + ((h >> 4) % TILE_SIZE), 1, 0, Math.PI * 2); ctx.fill();
+                }
             }
         }
     }
@@ -1234,8 +1362,7 @@ function startGame() {
 
 function tryGiveUp() {
     if (gameState !== 'PLAYING') return;
-    gameState = 'PAUSE'; 
-    document.getElementById('screen-confirm-giveup').classList.remove('hidden');
+    endGame();
 }
 
 function cancelGiveUp() {
@@ -1257,9 +1384,12 @@ function endGame() {
     document.getElementById('result-coins').innerText = sessionCoins;
     
     totalCoins += sessionCoins;
-    shopPurchasedPickaxes = 0; 
-    shopPurchasedLadders = 1; 
+    // 使わなかったつるはし/ハシゴはコインの無駄にならないよう、そのまま所持品として持ち越す
+    ownedPickaxes = player.pickaxes;
+    ownedLadders = player.ladders;
     localStorage.setItem('deepDrop_coins_v11', totalCoins);
+    localStorage.setItem('deepDrop_ownedPickaxes_v11', ownedPickaxes);
+    localStorage.setItem('deepDrop_ownedLadders_v11', ownedLadders);
     
     if (player.maxDepth > highScore) {
         highScore = player.maxDepth;
@@ -1276,10 +1406,13 @@ function clearGame() {
     gameState = 'CLEAR';
     clearCount++;
     totalCoins += 100; 
-    shopPurchasedPickaxes = 0;
-    shopPurchasedLadders = 1;
+    // 使わなかったつるはし/ハシゴはコインの無駄にならないよう、そのまま所持品として持ち越す
+    ownedPickaxes = player.pickaxes;
+    ownedLadders = player.ladders;
     localStorage.setItem('deepDrop_clears_v11', clearCount);
     localStorage.setItem('deepDrop_coins_v11', totalCoins);
+    localStorage.setItem('deepDrop_ownedPickaxes_v11', ownedPickaxes);
+    localStorage.setItem('deepDrop_ownedLadders_v11', ownedLadders);
     document.getElementById('screen-clear').classList.remove('hidden');
 }
 
@@ -1289,8 +1422,6 @@ function returnToHome() {
         animationFrameId = null;
     }
     gameState = 'START';
-    shopPurchasedPickaxes = 0; 
-    shopPurchasedLadders = 1; 
     document.getElementById('screen-gameover').classList.add('hidden');
     document.getElementById('screen-clear').classList.add('hidden');
     document.getElementById('screen-confirm-giveup').classList.add('hidden');
@@ -1319,16 +1450,23 @@ window.addEventListener('keydown', e => {
     if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { e.preventDefault(); jump(); }
     if (e.key === 'b' || e.key === 'B') { e.preventDefault(); useBomb(); }
     if (e.key === 'x' || e.key === 'X') { e.preventDefault(); useSideBreak(); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); }
 });
 window.addEventListener('keyup', e => { if (gameState === 'PLAYING') keys[e.key] = false; });
 
 let mobileLeftPressed = false;
 let mobileRightPressed = false;
+let mobileDownPressed = false;
 
 document.getElementById('btn-left').addEventListener('touchstart', (e) => { e.preventDefault(); if (gameState === 'PLAYING') mobileLeftPressed = true; });
 document.getElementById('btn-left').addEventListener('touchend', () => mobileLeftPressed = false);
 document.getElementById('btn-right').addEventListener('touchstart', (e) => { e.preventDefault(); if (gameState === 'PLAYING') mobileRightPressed = true; });
 document.getElementById('btn-right').addEventListener('touchend', () => mobileRightPressed = false);
+document.getElementById('btn-down').addEventListener('touchstart', (e) => { e.preventDefault(); if (gameState === 'PLAYING') mobileDownPressed = true; });
+document.getElementById('btn-down').addEventListener('touchend', () => mobileDownPressed = false);
+document.getElementById('btn-down').addEventListener('mousedown', () => { if (gameState === 'PLAYING') mobileDownPressed = true; });
+document.getElementById('btn-down').addEventListener('mouseup', () => mobileDownPressed = false);
+document.getElementById('btn-down').addEventListener('mouseleave', () => mobileDownPressed = false);
 
 document.getElementById('btn-use-pickaxe').addEventListener('click', usePickaxe);
 document.getElementById('btn-use-ladder').addEventListener('click', useLadder);
