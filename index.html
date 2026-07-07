@@ -63,7 +63,22 @@
         .ui-coin { color: #ffd700; border-color: #ffd700; }
         .ui-pickaxe { color: #00e5ff; border-color: #00e5ff; }
         .ui-ladder { color: #ff9900; border-color: #ff9900; }
-        .ui-light { color: #fff; background: #665500; border-color: #ffd700; display: none; }
+        .ui-light {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: #fff;
+            background: #665500;
+            border: 1px solid #ffd700;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 13px;
+            font-weight: bold;
+            white-space: nowrap;
+            box-shadow: 0 0 10px rgba(255,215,0,0.5);
+            z-index: 4;
+            display: none;
+        }
 
         .btn-giveup-top {
             background: #3d1d1d;
@@ -139,6 +154,41 @@
         .btn-ladder { background: #402a1a; border-color: #ff9900; color: #ff9900; }
         .btn-ladder:active { background: #ff9900; color: #111; }
         .btn-ladder.disabled { opacity: 0.25; border-color: #333; color: #555; background: #1a1a1a; cursor: not-allowed; box-shadow: none; transform: none; }
+
+        #ability-bar {
+            display: flex;
+            height: 44px;
+            gap: 6px;
+            padding: 4px 8px;
+            background: #161616;
+            border-top: 1px solid #262626;
+            justify-content: center;
+            z-index: 5;
+        }
+        .btn-ability {
+            flex: 0 1 110px;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 0px;
+            line-height: 1.1;
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 6px;
+            border: 2px solid #363636;
+            cursor: pointer;
+            background: #262626;
+            color: #ccc;
+        }
+        .btn-ability:active { transform: translateY(1px); }
+        .btn-ability.disabled { opacity: 0.25; cursor: not-allowed; }
+        .btn-jump { border-color: #7CFC00; color: #7CFC00; }
+        .btn-jump:active { background: #7CFC00; color: #111; }
+        .btn-bomb { border-color: #ff4444; color: #ff4444; }
+        .btn-bomb:active { background: #ff4444; color: #111; }
+        .btn-sidebreak { border-color: #ffaa00; color: #ffaa00; }
+        .btn-sidebreak:active { background: #ffaa00; color: #111; }
 
         .overlay {
             position: absolute;
@@ -231,11 +281,12 @@
             border: 1px solid #262626;
             margin-bottom: 15px;
         }
-        .char-card { flex: 0 0 110px; padding: 10px 5px; border: 2px solid #333; background: #222; border-radius: 6px; cursor: pointer; text-align: center; }
+        .char-card { flex: 0 0 132px; padding: 10px 6px; border: 2px solid #333; background: #222; border-radius: 6px; cursor: pointer; text-align: center; }
         .char-card.selected { border-color: #ffd700; background: #2c2a1c; }
         .char-card.locked { opacity: 0.3; cursor: not-allowed; }
         .char-dot { font-size: 20px; margin-bottom: 3px; line-height: 1; }
         .char-name { font-size: 11px; font-weight: bold; color: #fff; margin-bottom: 2px; }
+        .char-desc { font-size: 8.5px; color: #999; line-height: 1.3; }
 
         .shop-box {
             width: 90%;
@@ -305,13 +356,19 @@
             <div class="ui-box ui-coin">COINS: <span id="ui-coins">0</span></div>
             <div class="ui-box ui-pickaxe">⛏️: <span id="ui-pickaxes">0</span></div>
             <div class="ui-box ui-ladder">🪜: <span id="ui-ladders">0</span></div>
-            <div class="ui-box ui-light" id="ui-light-box">🔦 LIGHT: <span id="ui-light-timer">0</span>s</div>
         </div>
     </div>
 
     <div id="canvas-wrapper">
         <canvas id="gameCanvas"></canvas>
         <div id="danger-indicator" class="hidden">DEAD END!</div>
+        <div class="ui-light" id="ui-light-box">🔦 LIGHT: <span id="ui-light-timer">0</span>s</div>
+    </div>
+
+    <div id="ability-bar">
+        <div class="btn-ability btn-jump" id="btn-jump"></div>
+        <div class="btn-ability btn-bomb" id="btn-bomb"></div>
+        <div class="btn-ability btn-sidebreak" id="btn-sidebreak"></div>
     </div>
 
     <div id="controls">
@@ -390,17 +447,28 @@ let truePathX = 10;
 let checkPointsTriggered = {}; 
 let animationFrameId = null; 
 
+const JUMP_DURATION = 10;       // ジャンプ1回の上昇にかかるフレーム数
+const EXPLOSION_DURATION = 14;  // 爆弾の演出フレーム数
+
 const CHARACTERS = [
-    { id: 'yellow', name: 'イエロー', color: '#fff700', req: 0, scale: 1.0 },
-    { id: 'aqua', name: 'アクア', color: '#00e5ff', req: 80, scale: 1.1 },
-    { id: 'emerald', name: 'エメラルド', color: '#00ff66', req: 160, scale: 1.2 },
-    { id: 'ruby', name: 'ルビー', color: '#ff2266', req: 240, scale: 1.3 },
-    { id: 'purple', name: 'パープル', color: '#cc33ff', req: 320, scale: 1.4 },
-    { id: 'orange', name: 'オレンジ', color: '#ff9900', req: 400, scale: 1.5 },
-    { id: 'rainbow', name: 'プリズム', color: '#ffffff', req: 500, scale: 1.6 }
+    { id: 'pioneer', name: 'パイオニア', color: '#fff700', req: 0,
+      viewScale: 1.0, fallFree: true, jumpsMax: 0, bombsMax: 0, sideBreaksMax: 0,
+      desc: 'バランス型。視野が広く、落下中も横移動しやすい' },
+    { id: 'hopper', name: 'ホッパー', color: '#00e5ff', req: 100,
+      viewScale: 0.9, fallFree: false, jumpsMax: 2, bombsMax: 0, sideBreaksMax: 0,
+      desc: '1ブロック分のジャンプが2回可能。視野は少し狭い' },
+    { id: 'crasher', name: 'クラッシャー', color: '#ff9900', req: 200,
+      viewScale: 0.9, fallFree: false, jumpsMax: 0, bombsMax: 0, sideBreaksMax: 2,
+      desc: '横のブロックを2回まで破壊可能（下は壊せない）' },
+    { id: 'blaster', name: 'ブラスター', color: '#ff2266', req: 300,
+      viewScale: 0.9, fallFree: false, jumpsMax: 0, bombsMax: 3, sideBreaksMax: 0,
+      desc: '爆弾を3個所持。周囲1マスを吹き飛ばせる' },
+    { id: 'ranger', name: 'レンジャー', color: '#cc33ff', req: 400,
+      viewScale: 0.9, fallFree: false, jumpsMax: 1, bombsMax: 1, sideBreaksMax: 1,
+      desc: 'ジャンプ・爆弾・横破壊を1回ずつ所持' }
 ];
 
-let activeCharId = localStorage.getItem('deepDrop_activeChar_v11') || 'yellow';
+let activeCharId = localStorage.getItem('deepDrop_activeChar_v11') || 'pioneer';
 let clearCount = parseInt(localStorage.getItem('deepDrop_clears_v11')) || 0;
 let highScore = parseInt(localStorage.getItem('deepDrop_high_v11')) || 0;
 let totalCoins = parseInt(localStorage.getItem('deepDrop_coins_v11')) || 0;
@@ -418,7 +486,16 @@ let player = {
     maxDepth: 0,
     flashlightTimer: 0,
     pickaxes: 0,
-    ladders: 1
+    ladders: 1,
+    facingDir: 1,
+    fallStartX: 10 * TILE_SIZE,
+    jumpsLeft: 0,
+    jumpFramesLeft: 0,
+    bombs: 0,
+    sideBreaks: 0,
+    explosionTimer: 0,
+    explosionX: 0,
+    explosionY: 0
 };
 
 document.getElementById('ui-high').innerText = highScore;
@@ -445,6 +522,14 @@ function initMap() {
     
     player.pickaxes = shopPurchasedPickaxes;
     player.ladders = shopPurchasedLadders; 
+
+    const activeChar = CHARACTERS.find(c => c.id === activeCharId) || CHARACTERS[0];
+    player.facingDir = 1;
+    player.jumpFramesLeft = 0;
+    player.explosionTimer = 0;
+    player.jumpsLeft = activeChar.jumpsMax;
+    player.bombs = activeChar.bombsMax;
+    player.sideBreaks = activeChar.sideBreaksMax;
     
     checkPointsTriggered = { 100: false, 200: false, 300: false, 400: false };
     truePathX = 10; 
@@ -463,6 +548,7 @@ function initMap() {
     updatePickaxeUI();
     updateLadderUI();
     updateShopUI();
+    updateAbilityUI();
     document.getElementById('ui-light-box').style.display = 'none';
     renderCharacterSelector();
 }
@@ -599,6 +685,83 @@ function useLadder() {
     document.getElementById('danger-indicator').classList.add('hidden');
 }
 
+function jump() {
+    if (gameState !== 'PLAYING' || player.jumpsLeft <= 0) return;
+    player.jumpsLeft--;
+    player.jumpFramesLeft = JUMP_DURATION;
+    updateAbilityUI();
+}
+
+function useBomb() {
+    if (gameState !== 'PLAYING' || player.bombs <= 0) return;
+
+    let pX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
+    let pY = Math.floor((player.subY + TILE_SIZE / 2) / TILE_SIZE);
+
+    for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+            let ty = pY + dy, tx = pX + dx;
+            if (map[ty] && tx >= 0 && tx < COLS) map[ty][tx] = 0;
+        }
+    }
+
+    player.bombs--;
+    player.explosionTimer = EXPLOSION_DURATION;
+    player.explosionX = pX;
+    player.explosionY = pY;
+    updateAbilityUI();
+    player.stuckTimer = 0;
+    document.getElementById('danger-indicator').classList.add('hidden');
+}
+
+function useSideBreak() {
+    if (gameState !== 'PLAYING' || player.sideBreaks <= 0) return;
+
+    let dir = player.facingDir || 1;
+    let pX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
+    let pY = Math.floor((player.subY + TILE_SIZE / 2) / TILE_SIZE);
+    let targetX = pX + dir;
+
+    if (map[pY] && map[pY][targetX] === 1) {
+        map[pY][targetX] = 0;
+        player.sideBreaks--;
+        updateAbilityUI();
+        player.stuckTimer = 0;
+        document.getElementById('danger-indicator').classList.add('hidden');
+    }
+}
+
+function updateAbilityUI() {
+    const activeChar = CHARACTERS.find(c => c.id === activeCharId) || CHARACTERS[0];
+
+    const jumpBtn = document.getElementById('btn-jump');
+    if (activeChar.jumpsMax > 0) {
+        jumpBtn.style.display = 'flex';
+        jumpBtn.innerHTML = `🦘 JUMP<br>×${player.jumpsLeft}`;
+        jumpBtn.classList.toggle('disabled', player.jumpsLeft <= 0);
+    } else {
+        jumpBtn.style.display = 'none';
+    }
+
+    const bombBtn = document.getElementById('btn-bomb');
+    if (activeChar.bombsMax > 0) {
+        bombBtn.style.display = 'flex';
+        bombBtn.innerHTML = `💣 BOMB<br>×${player.bombs}`;
+        bombBtn.classList.toggle('disabled', player.bombs <= 0);
+    } else {
+        bombBtn.style.display = 'none';
+    }
+
+    const sideBtn = document.getElementById('btn-sidebreak');
+    if (activeChar.sideBreaksMax > 0) {
+        sideBtn.style.display = 'flex';
+        sideBtn.innerHTML = `🧨 SMASH<br>×${player.sideBreaks}`;
+        sideBtn.classList.toggle('disabled', player.sideBreaks <= 0);
+    } else {
+        sideBtn.style.display = 'none';
+    }
+}
+
 function getBiomeColor(y) {
     let depthMeters = Math.floor(y / 2);
     let interval = 125; 
@@ -622,8 +785,8 @@ function spawnPickaxeChestAtPlayer(meters) {
     let currentY = Math.floor(player.subY / TILE_SIZE);
     let currentX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
     
-    let targetX = currentX + 1;
-    if (targetX >= COLS - 1) targetX = currentX - 1;
+    // 自分と同じ列に出す（隣の列だと頭上のブロックに阻まれて取れないことがあったため）
+    let targetX = currentX;
     
     let targetY = currentY;
     while (targetY < generatedMaxY) {
@@ -665,11 +828,16 @@ function update() {
         document.getElementById('ui-light-box').style.display = 'none';
     }
 
+    if (player.explosionTimer > 0) player.explosionTimer--;
+
+    const activeChar = CHARACTERS.find(c => c.id === activeCharId) || CHARACTERS[0];
+
     let onLadder = isPlayerOnLadder();
     
     let moveDir = 0;
     if (keys['ArrowLeft'] || keys['a'] || mobileLeftPressed) moveDir = -1;
     if (keys['ArrowRight'] || keys['d'] || mobileRightPressed) moveDir = 1;
+    if (moveDir !== 0) player.facingDir = moveDir;
 
     let wantToLeaveLadder = false;
     if (onLadder && moveDir !== 0) {
@@ -700,6 +868,7 @@ function update() {
 
     if (onLadder) {
         player.isFalling = false;
+        player.jumpsLeft = activeChar.jumpsMax;
         let pCenterX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
         let currentFootY = Math.floor((player.subY + TILE_SIZE - 1) / TILE_SIZE);
         let aboveY = currentFootY - 1;
@@ -730,19 +899,40 @@ function update() {
                 player.subY -= 2.5;
             }
         }
+    } else if (player.jumpFramesLeft > 0) {
+        let pCenterXJ = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
+        let aboveGridY = Math.floor((player.subY - 1) / TILE_SIZE);
+        let blockedAbove = map[aboveGridY] && map[aboveGridY][pCenterXJ] === 1;
+        if (blockedAbove) {
+            player.jumpFramesLeft = 0;
+        } else {
+            player.subY -= TILE_SIZE / JUMP_DURATION;
+            player.jumpFramesLeft--;
+            player.isFalling = false;
+        }
     } else {
         if (!standOnFloor) {
+            if (!player.isFalling) player.fallStartX = player.subX; 
             player.isFalling = true;
             player.subY += 9.0; 
         } else {
             player.isFalling = false;
             player.subY = Math.floor(player.subY / TILE_SIZE) * TILE_SIZE; 
+            player.jumpsLeft = activeChar.jumpsMax;
         }
     }
 
     if (moveDir !== 0) {
         let currentSpeed = (player.isFalling && !wantToLeaveLadder) ? player.speed * 0.35 : player.speed;
         let nextSubX = player.subX + moveDir * currentSpeed;
+
+        if (player.isFalling && !wantToLeaveLadder && !activeChar.fallFree) {
+            let minX = player.fallStartX - TILE_SIZE;
+            let maxX = player.fallStartX + TILE_SIZE;
+            if (nextSubX < minX) nextSubX = minX;
+            if (nextSubX > maxX) nextSubX = maxX;
+        }
+
         let checkX = moveDir === -1 ? Math.floor(nextSubX / TILE_SIZE) : Math.floor((nextSubX + player.width) / TILE_SIZE);
         let checkY1 = Math.floor(player.subY / TILE_SIZE);
         let checkY2 = Math.floor((player.subY + TILE_SIZE - 1) / TILE_SIZE);
@@ -914,7 +1104,17 @@ function draw() {
 
     let activeChar = CHARACTERS.find(c => c.id === activeCharId) || CHARACTERS[0];
     let charColor = activeChar.color;
-    if (activeChar.id === 'rainbow') charColor = `hsl(${(Date.now() / 15) % 360}, 100%, 65%)`;
+
+    if (player.explosionTimer > 0) {
+        let ex = player.explosionX * TILE_SIZE + TILE_SIZE / 2;
+        let ey = player.explosionY * TILE_SIZE + TILE_SIZE / 2;
+        let prog = 1 - (player.explosionTimer / EXPLOSION_DURATION);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 1 - prog);
+        ctx.fillStyle = '#ff8800';
+        ctx.beginPath(); ctx.arc(ex, ey, TILE_SIZE * 1.8 * prog, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
 
     let charX = player.subX + player.width / 2;
     let charY = player.subY + TILE_SIZE / 2;
@@ -963,9 +1163,9 @@ function draw() {
     let screenPlayerY = (player.subY + TILE_SIZE/2 - cameraY) * scaleFactor;
     let screenPlayerX = (player.subX + player.width/2) * scaleFactor;
     
-    // 【重要】ライトの照射範囲（視界の円）の計算にのみ、キャラクターの固有スケール(activeChar.scale)を適用
-    let viewRadiusStart = TILE_SIZE * 1.5 * activeChar.scale * scaleFactor;
-    let viewRadiusEnd = TILE_SIZE * 6.5 * activeChar.scale * scaleFactor;
+    // 【重要】ライトの照射範囲（視界の円）の計算にのみ、キャラクターの固有視野倍率(activeChar.viewScale)を適用
+    let viewRadiusStart = TILE_SIZE * 1.5 * activeChar.viewScale * scaleFactor;
+    let viewRadiusEnd = TILE_SIZE * 6.5 * activeChar.viewScale * scaleFactor;
 
     if (player.flashlightTimer > 0) { viewRadiusStart *= 1.25; viewRadiusEnd *= 1.25; }
 
@@ -982,18 +1182,19 @@ function renderCharacterSelector() {
     CHARACTERS.forEach(c => {
         let card = document.createElement('div');
         card.className = 'char-card';
-        let isUnlocked = (highScore >= c.req) || (c.id === 'yellow');
+        let isUnlocked = (highScore >= c.req) || (c.id === 'pioneer');
         if (!isUnlocked) {
             card.classList.add('locked');
             card.innerHTML = `<div class="char-dot" style="color:#555;">🔒</div><div class="char-name">${c.req}m</div>`;
         } else {
             if (c.id === activeCharId) card.classList.add('selected');
-            card.innerHTML = `<div class="char-dot" style="color:${c.color}">●</div><div class="char-name">${c.name}</div>`;
+            card.innerHTML = `<div class="char-dot" style="color:${c.color}">●</div><div class="char-name">${c.name}</div><div class="char-desc">${c.desc}</div>`;
             card.addEventListener('click', () => {
                 if (gameState === 'START') {
                     activeCharId = c.id;
                     localStorage.setItem('deepDrop_activeChar_v11', activeCharId);
                     renderCharacterSelector();
+                    updateAbilityUI();
                     draw();
                 }
             });
@@ -1115,6 +1316,9 @@ window.addEventListener('keydown', e => {
     if (e.key === ' ') { e.preventDefault(); usePickaxe(); }
     if (e.key === 'Shift') { e.preventDefault(); useLadder(); }
     if (e.key === 'g' || e.key === 'G') { e.preventDefault(); tryGiveUp(); }
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { e.preventDefault(); jump(); }
+    if (e.key === 'b' || e.key === 'B') { e.preventDefault(); useBomb(); }
+    if (e.key === 'x' || e.key === 'X') { e.preventDefault(); useSideBreak(); }
 });
 window.addEventListener('keyup', e => { if (gameState === 'PLAYING') keys[e.key] = false; });
 
@@ -1128,6 +1332,9 @@ document.getElementById('btn-right').addEventListener('touchend', () => mobileRi
 
 document.getElementById('btn-use-pickaxe').addEventListener('click', usePickaxe);
 document.getElementById('btn-use-ladder').addEventListener('click', useLadder);
+document.getElementById('btn-jump').addEventListener('click', jump);
+document.getElementById('btn-bomb').addEventListener('click', useBomb);
+document.getElementById('btn-sidebreak').addEventListener('click', useSideBreak);
 
 document.getElementById('btn-giveup').addEventListener('click', tryGiveUp);
 document.getElementById('btn-giveup-no').addEventListener('click', cancelGiveUp);
