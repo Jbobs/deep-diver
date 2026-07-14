@@ -682,7 +682,7 @@ function useLadder() {
     let pX = Math.floor((player.subX + player.width / 2) / TILE_SIZE);
     let pY = Math.floor((player.subY + TILE_SIZE - 2) / TILE_SIZE);
 
-    for (let i = 1; i <= 2; i++) {
+    for (let i = 0; i <= 2; i++) {
         let targetY = pY - i;
         if (targetY >= 0) {
             if (map[targetY]) map[targetY][pX] = 0; 
@@ -1077,7 +1077,9 @@ function update() {
 
     if (isStuck) {
         document.getElementById('danger-indicator').classList.remove('hidden');
-        if (player.pickaxes > 0 || player.ladders > 0) {
+        let hasEscapeTool = player.pickaxes > 0 || player.ladders > 0 ||
+                             player.jumpsLeft > 0 || player.bombs > 0 || player.sideBreaks > 0;
+        if (hasEscapeTool) {
             player.stuckTimer = 0; 
         } else {
             player.stuckTimer++;
@@ -1299,7 +1301,8 @@ function draw() {
 
     let gradient = ctx.createRadialGradient(screenPlayerX, screenPlayerY, viewRadiusStart, screenPlayerX, screenPlayerY, viewRadiusEnd);
     gradient.addColorStop(0, 'rgba(0,0,0,0)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0.98)'); 
+    gradient.addColorStop(0.6, 'rgba(0,0,0,0.45)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0.72)'); 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
