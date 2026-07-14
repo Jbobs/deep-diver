@@ -528,7 +528,8 @@ function initMap() {
     player.flashlightTimer = 0;
     
     player.pickaxes = ownedPickaxes;
-    player.ladders = ownedLadders; 
+    player.ladders = Math.max(1, ownedLadders); // 毎回最低1本は無料で持てるように保証（0本スタートで詰みやすくなるのを防ぐ）
+    player.isFalling = false;
 
     const activeChar = CHARACTERS.find(c => c.id === activeCharId) || CHARACTERS[0];
     player.facingDir = 1;
@@ -1302,7 +1303,7 @@ function draw() {
     let gradient = ctx.createRadialGradient(screenPlayerX, screenPlayerY, viewRadiusStart, screenPlayerX, screenPlayerY, viewRadiusEnd);
     gradient.addColorStop(0, 'rgba(0,0,0,0)');
     gradient.addColorStop(0.6, 'rgba(0,0,0,0.45)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0.90)'); 
+    gradient.addColorStop(1, 'rgba(0,0,0,0.9)'); 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
